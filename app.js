@@ -30,7 +30,9 @@ app.use("/api/locations", locationRoutes);
 app.use("/api/auth", authRoute);
 app.use("/api/comments", commentRoute);
 app.use("/api/contact", contactRoute);
-
+app.get("/", (req, res) => {
+  res.send("API çalışıyor!");
+});
 app.listen(8800, () => {
   console.log("Server is running!");
 });
