@@ -53,7 +53,7 @@ export const deleteComment = async (req, res) => {
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET_KEY);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
