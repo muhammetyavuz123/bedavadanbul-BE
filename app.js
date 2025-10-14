@@ -16,7 +16,7 @@ dotenv.config();
 const app = express();
 const allowedOrigins = [
   "http://localhost:5173", // Local frontend
-  "https://www.bedavadanbul.com/", // Canlı frontend
+  "https://www.bedavadanbul.com", // Canlı frontend
 ];
 
 app.use(
