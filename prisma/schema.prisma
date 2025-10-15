@@ -90,6 +90,7 @@ model User {
   resetToken        String?   
   resetTokenExpiry  DateTime?
    comments   Comment[] 
+   phone      String @unique
 }
 
 model Chat {

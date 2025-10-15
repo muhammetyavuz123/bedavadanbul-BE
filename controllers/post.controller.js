@@ -9,29 +9,30 @@ export const getPosts = async (req, res) => {
       city: query.city || undefined,
       type: query.type || undefined,
       district: query.district || undefined,
-      approved: query.approved === "true", // default zaten true olacak aşağıda
     };
 
-    if (query.approved === undefined) {
+    // ✅ 'approved' kontrolü
+    if (query.approved === "true") {
       filters.approved = true;
+    } else if (query.approved === "false") {
+      filters.approved = false;
     }
+    // 'all' veya undefined gelirse filtreleme yapılmaz
 
     const page = parseInt(query.page) || 1;
     const limit = parseInt(query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Toplam kaç kayıt var? (sayfalama bilgisi için)
     const total = await prisma.post.count({
       where: filters,
     });
 
-    // Belirli sayfaya göre veri getir
     const posts = await prisma.post.findMany({
       where: filters,
-      skip: skip,
+      skip,
       take: limit,
       orderBy: {
-        createdAt: "desc", // isteğe bağlı sıralama
+        createdAt: "desc",
       },
     });
 

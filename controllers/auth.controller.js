@@ -15,14 +15,12 @@ const transporter = nodemailer.createTransport({
 });
 
 export const register = async (req, res) => {
-  const { username, email, password, workplaceName, role } = req.body;
+  const { username, phone, email, password, workplaceName, role } = req.body;
 
   try {
     // HASH THE PASSWORD
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    console.log(hashedPassword);
 
     // CREATE A NEW USER AND SAVE TO DB
     const newUser = await prisma.user.create({
@@ -32,10 +30,9 @@ export const register = async (req, res) => {
         password: hashedPassword,
         workplaceName: workplaceName ? workplaceName : "",
         role,
+        phone,
       },
     });
-
-    console.log(newUser);
 
     res.status(201).json({ message: "User created successfully" });
   } catch (err) {
@@ -45,47 +42,62 @@ export const register = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  const { identifier, password } = req.body;
+  let { identifier, password } = req.body;
+  const cleanedIdentifier = identifier.replace(/[^0-9]/g, ""); // Sadece rakamlar
 
   try {
-    // E-POSTA MI KULLANICI ADI MI KONTROLÜ
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+    const isPhone =
+      cleanedIdentifier.length >= 10 && cleanedIdentifier.length <= 15;
 
-    // KULLANICIYI VERİTABANINDAN BUL
-    const user = await prisma.user.findUnique({
-      where: isEmail ? { email: identifier } : { username: identifier },
-    });
+    let user;
+
+    if (isEmail) {
+      user = await prisma.user.findUnique({
+        where: { email: identifier },
+      });
+    } else if (isPhone) {
+      // normalize edilen haliyle veritabanındaki tüm user'ları al
+      const users = await prisma.user.findMany({
+        where: {
+          phone: {
+            contains: cleanedIdentifier, // sadece rakamlarla karşılaştır
+          },
+        },
+      });
+
+      // ilk eşleşeni al
+      user = users.length > 0 ? users[0] : null;
+    } else {
+      user = await prisma.user.findUnique({
+        where: { username: identifier },
+      });
+    }
 
     if (!user) {
-      return res.status(400).json({ message: "Invalid Credentials!" });
+      return res.status(400).json({ message: "Geçersiz kullanıcı bilgisi!" });
     }
 
-    // ŞİFRE KONTROLÜ
     const isPasswordValid = await bcrypt.compare(password, user.password);
-
     if (!isPasswordValid) {
-      return res.status(400).json({ message: "Invalid Credentials!" });
+      return res.status(400).json({ message: "Geçersiz şifre!" });
     }
 
-    // JWT TOKEN OLUŞTUR
-    const age = 1000 * 60 * 60 * 24 * 7; // 7 gün
-
+    const age = 1000 * 60 * 60 * 24 * 7;
     const token = jwt.sign(
-      {
-        id: user.id,
-        isAdmin: false,
-      },
+      { id: user.id, isAdmin: false },
       process.env.JWT_SECRET,
-      { expiresIn: age }
+      {
+        expiresIn: age,
+      }
     );
 
-    const { password: userPassword, ...userInfo } = user;
+    const { password: _, ...userInfo } = user;
 
-    // COOKIE GÖNDER
     res
       .cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // Canlıda true, lokalde false
+        secure: process.env.NODE_ENV === "production",
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         maxAge: age,
       })
@@ -93,13 +105,12 @@ export const login = async (req, res) => {
       .json(userInfo);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Failed to login!" });
+    res.status(500).json({ message: "Giriş işlemi başarısız!" });
   }
 };
 
 export const forgotPassword = async (req, res) => {
   const { email } = req.body;
-  console.log("🚀 ~ forgotPassword ~ forgotPassword:", email);
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
