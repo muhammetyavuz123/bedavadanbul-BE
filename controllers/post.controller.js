@@ -5,28 +5,53 @@ export const getPosts = async (req, res) => {
   const query = req.query;
 
   try {
-    const filters = {
-      city: query.city || undefined,
-      type: query.type || undefined,
-      district: query.district || undefined,
-    };
+    const filters = {};
 
-    // ✅ 'approved' kontrolü
-    if (query.approved === "true") {
-      filters.approved = true;
-    } else if (query.approved === "false") {
-      filters.approved = false;
+    // Dinamik filtreleme
+    const filterableFields = ["city", "district", "type", "approved"];
+    filterableFields.forEach((field) => {
+      if (query[field] !== undefined) {
+        if (field === "approved") {
+          filters[field] = query[field] === "true";
+        } else {
+          filters[field] = query[field];
+        }
+      }
+    });
+
+    // Search: title ve description içinde
+    if (query.search) {
+      filters.OR = [
+        { title: { contains: query.search, mode: "insensitive" } },
+        // { desc: { contains: query.search, mode: "insensitive" } },
+      ];
     }
-    // 'all' veya undefined gelirse filtreleme yapılmaz
 
+    // Fiyat aralığı filtreleme
+    if (query.minPrice || query.maxPrice) {
+      filters.price = {};
+      if (query.minPrice) filters.price.gte = parseFloat(query.minPrice);
+      if (query.maxPrice) filters.price.lte = parseFloat(query.maxPrice);
+    }
+
+    // Tarih aralığı filtreleme (createdAt)
+    if (query.startDate || query.endDate) {
+      filters.createdAt = {};
+      if (query.startDate) filters.createdAt.gte = new Date(query.startDate);
+      if (query.endDate) filters.createdAt.lte = new Date(query.endDate);
+    }
+
+    // Pagination
     const page = parseInt(query.page) || 1;
     const limit = parseInt(query.limit) || 10;
     const skip = (page - 1) * limit;
 
+    // Toplam kayıt sayısı
     const total = await prisma.post.count({
       where: filters,
     });
 
+    // Kayıtlar
     const posts = await prisma.post.findMany({
       where: filters,
       skip,
@@ -43,7 +68,7 @@ export const getPosts = async (req, res) => {
       totalPages: Math.ceil(total / limit),
     });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ message: "Failed to get posts" });
   }
 };

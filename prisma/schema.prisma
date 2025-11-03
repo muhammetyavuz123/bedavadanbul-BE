@@ -51,7 +51,7 @@ enum Property {
 
 model PostDetail {
   id         String  @id @default(auto()) @map("_id") @db.ObjectId
-  desc       String
+  desc       String?
   campaignDuration  String?
   discountAmount    String?
   income     String?
