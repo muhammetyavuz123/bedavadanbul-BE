@@ -16,21 +16,23 @@ dotenv.config();
 const app = express();
 const allowedOrigins = [
   "http://localhost:5173", // Local frontend
+  "http://localhost:8800", // Local mobil
   "https://www.bedavadanbul.com", // Canlı frontend
 ];
+app.use(cors({ origin: true, credentials: true }));
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("CORS hatası: Erişime izin verilmiyor."));
-      }
-    },
-    credentials: true,
-  })
-);
+// app.use(
+//   cors({
+//     origin: (origin, callback) => {
+//       if (!origin || allowedOrigins.includes(origin)) {
+//         callback(null, true);
+//       } else {
+//         callback(new Error("CORS hatası: Erişime izin verilmiyor."));
+//       }
+//     },
+//     credentials: true,
+//   })
+// );
 // app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
 // app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());

@@ -21,8 +21,7 @@ model Post {
   address    String
   city       String
   district   String?
-  bedroom    Int?
-  bathroom   Int?
+  phoneNumber   String?
   latitude   String
   longitude  String
   type       String
@@ -79,8 +78,10 @@ model User {
   email      String      @unique
   username   String      @unique
   password   String
+  city   String
+  district   String
   role       String      @default("user")
-  workplaceName   String ?
+  type   String ?
   avatar     String?
   createdAt  DateTime    @default(now())
   posts      Post[]
