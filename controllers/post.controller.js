@@ -19,6 +19,11 @@ export const getPosts = async (req, res) => {
       }
     });
 
+    // userId ile filtreleme
+    if (query.userId) {
+      filters.userId = query.userId;
+    }
+
     // Search: title ve description içinde
     if (query.search) {
       filters.OR = [
