@@ -38,8 +38,6 @@ export const register = async (req, res) => {
 
     res.status(201).json({ message: "Kullanıcı başarıyla oluşturuldu." });
   } catch (err) {
-    console.log("❌ Prisma Hatası:", err);
-
     // ✅ Prisma unique constraint hatası
     if (err.code === "P2002" && err.meta?.target?.includes("phone")) {
       return res
@@ -61,7 +59,7 @@ export const register = async (req, res) => {
 
 export const login = async (req, res) => {
   let { identifier, password } = req.body;
-  const cleanedIdentifier = identifier.replace(/[^0-9]/g, ""); // Sadece rakamlar
+  const cleanedIdentifier = identifier.replace(/[^0-9]/g, "");
 
   try {
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
@@ -75,16 +73,13 @@ export const login = async (req, res) => {
         where: { email: identifier },
       });
     } else if (isPhone) {
-      // normalize edilen haliyle veritabanındaki tüm user'ları al
       const users = await prisma.user.findMany({
         where: {
           phone: {
-            contains: cleanedIdentifier, // sadece rakamlarla karşılaştır
+            contains: cleanedIdentifier,
           },
         },
       });
-
-      // ilk eşleşeni al
       user = users.length > 0 ? users[0] : null;
     } else {
       user = await prisma.user.findUnique({
@@ -101,26 +96,39 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Geçersiz şifre!" });
     }
 
-    const age = 1000 * 60 * 60 * 24 * 7;
+    // ⏱️ 6 AY
+    const SIX_MONTHS = 1000 * 60 * 60 * 24 * 30 * 6;
+
     const token = jwt.sign(
-      { id: user.id, isAdmin: false },
+      {
+        id: user.id,
+        role: user.role,
+      },
       process.env.JWT_SECRET,
       {
-        expiresIn: age,
-      }
+        expiresIn: "180d",
+      },
     );
 
-    const { password: _, ...userInfo } = user;
+    const { password: _, resetToken, resetTokenExpiry, ...safeUser } = user;
 
-    res
-      .cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-        maxAge: age,
-      })
-      .status(200)
-      .json(userInfo);
+    // 🍪 WEB İÇİN COOKIE
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: SIX_MONTHS,
+    });
+
+    // 📦 MOBİL + WEB JSON RESPONSE
+    return res.status(200).json({
+      user: {
+        ...safeUser,
+        loginAt: Date.now(),
+      },
+      token, // 🔥 ASIL OLAY BU
+      expiresIn: SIX_MONTHS,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Giriş işlemi başarısız!" });
