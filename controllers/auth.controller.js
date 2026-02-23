@@ -226,3 +226,38 @@ export const resetPassword = async (req, res) => {
 export const logout = (req, res) => {
   res.clearCookie("token").status(200).json({ message: "Logout Successful" });
 };
+
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 1️⃣ Kullanıcının postlarını sil
+    await prisma.post.deleteMany({
+      where: { userId },
+    });
+
+    // 2️⃣ Saved postları sil
+    await prisma.savedPost.deleteMany({
+      where: { userId },
+    });
+
+    // 3️⃣ Yorumları sil
+    await prisma.comment.deleteMany({
+      where: { userId },
+    });
+
+    // 4️⃣ Kullanıcıyı sil
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    res.status(200).json({
+      message: "Hesap ve tüm veriler başarıyla silindi.",
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Hesap silinirken hata oluştu.",
+    });
+  }
+};
