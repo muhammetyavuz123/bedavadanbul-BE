@@ -189,7 +189,6 @@ export const deletePost = async (req, res) => {
 
 export const confirmPost = async (req, res) => {
   const { id } = req.params;
-  console.log("🚀 ~ confirmPost ~ id:", id);
 
   try {
     const updatedPost = await prisma.post.update({

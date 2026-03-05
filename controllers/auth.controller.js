@@ -230,34 +230,40 @@ export const logout = (req, res) => {
 export const deleteAccount = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log("Deleting account for user:", userId);
 
-    // 1️⃣ Kullanıcının postlarını sil
-    await prisma.post.deleteMany({
+    // 1️⃣ Kullanıcının postlarını al
+    const posts = await prisma.post.findMany({
       where: { userId },
+      select: { id: true },
     });
+    const postIds = posts.map((p) => p.id);
 
-    // 2️⃣ Saved postları sil
-    await prisma.savedPost.deleteMany({
-      where: { userId },
-    });
+    // 2️⃣ Postlara bağlı yorumları sil
+    await prisma.comment.deleteMany({ where: { postId: { in: postIds } } });
 
-    // 3️⃣ Yorumları sil
-    await prisma.comment.deleteMany({
-      where: { userId },
-    });
+    // 3️⃣ Kullanıcının yorumlarını sil (başka postlarda olabilir)
+    await prisma.comment.deleteMany({ where: { userId } });
 
-    // 4️⃣ Kullanıcıyı sil
-    await prisma.user.delete({
-      where: { id: userId },
-    });
+    // 4️⃣ PostDetail kayıtlarını sil (PostToPostDetail relation)
+    await prisma.postDetail.deleteMany({ where: { postId: { in: postIds } } });
 
-    res.status(200).json({
-      message: "Hesap ve tüm veriler başarıyla silindi.",
-    });
+    // 5️⃣ Saved postları sil
+    await prisma.savedPost.deleteMany({ where: { userId } });
+
+    // 6️⃣ Postları sil
+    await prisma.post.deleteMany({ where: { userId } });
+
+    // 7️⃣ Kullanıcıyı sil
+    await prisma.user.delete({ where: { id: userId } });
+
+    console.log("Account deleted successfully:", userId);
+
+    res
+      .status(200)
+      .json({ message: "Hesap ve tüm veriler başarıyla silindi." });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      message: "Hesap silinirken hata oluştu.",
-    });
+    console.error("deleteAccount error:", error);
+    res.status(500).json({ message: "Hesap silinirken hata oluştu." });
   }
 };
