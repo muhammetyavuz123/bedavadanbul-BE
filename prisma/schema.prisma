@@ -33,6 +33,7 @@ model Post {
   savedPosts SavedPost[]
   approved  Boolean?  @default(false)
   comments   Comment[]
+  listingType String @default("standard")
 
 }
 

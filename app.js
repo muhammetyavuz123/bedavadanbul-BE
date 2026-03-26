@@ -50,3 +50,6 @@ app.use("/api/contact", contactRoute);
 app.get("/", (req, res) => res.send("API çalışıyor!"));
 
 app.listen(8800, () => console.log("Server is running!"));
+// app.listen(8800, "0.0.0.0", () => {
+//   console.log("Backend running on 8800");
+// });

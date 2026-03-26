@@ -130,15 +130,22 @@ export const addPost = async (req, res) => {
   const tokenUserId = req.userId;
 
   try {
+    const { listingType, ...rest } = body.postData;
+
     const newPost = await prisma.post.create({
       data: {
-        ...body.postData,
+        ...rest,
+
+        // sadece kaydet
+        listingType: listingType || "standard",
+
         userId: tokenUserId,
         postDetail: {
           create: body.postDetail,
         },
       },
     });
+
     res.status(200).json(newPost);
   } catch (err) {
     console.log(err);
@@ -147,11 +154,47 @@ export const addPost = async (req, res) => {
 };
 
 export const updatePost = async (req, res) => {
+  const postId = req.params.id;
+
   try {
-    res.status(200).json();
+    const { postData, postDetail } = req.body;
+
+    // 🔐 (opsiyonel ama önemli) -> sadece kendi postunu güncelleyebilsin
+    // const userId = req.userId;
+
+    const updatedPost = await prisma.post.update({
+      where: { id: postId },
+      data: {
+        title: postData.title,
+        price: postData.price,
+        address: postData.address,
+        city: postData.city,
+        district: postData.district,
+        type: postData.type,
+        businessName: postData.businessName,
+        latitude: postData.latitude,
+        longitude: postData.longitude,
+        phoneNumber: postData.phoneNumber,
+        images: postData.images,
+        listingType: postData.listingType, // ⚠️ schema’da olmalı
+
+        postDetail: {
+          update: {
+            desc: postDetail.desc,
+            campaignDuration: postDetail.campaignDuration,
+            discountAmount: postDetail.discountAmount,
+          },
+        },
+      },
+      include: {
+        postDetail: true,
+      },
+    });
+
+    res.status(200).json(updatedPost);
   } catch (err) {
     console.log(err);
-    res.status(500).json({ message: "Failed to update posts" });
+    res.status(500).json({ message: "Failed to update post" });
   }
 };
 
