@@ -57,20 +57,35 @@ export const getPosts = async (req, res) => {
     });
 
     // Kayıtlar
+    // 1. TÜM VERİYİ ÇEK (orderBy kaldır!)
     const posts = await prisma.post.findMany({
       where: filters,
-      skip,
-      take: limit,
-      orderBy: {
-        createdAt: "desc",
-      },
     });
 
+    // 2. SIRALA
+    const sortedPosts = posts.sort((a, b) => {
+      const order = {
+        doping: 3,
+        featured: 2,
+        standard: 1,
+      };
+
+      if (order[b.listingType] !== order[a.listingType]) {
+        return order[b.listingType] - order[a.listingType];
+      }
+
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    // 3. PAGINATION
+    const start = (page - 1) * limit;
+    const paginatedPosts = sortedPosts.slice(start, start + limit);
+
     res.status(200).json({
-      data: posts,
-      total,
+      data: paginatedPosts,
+      total: sortedPosts.length,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(sortedPosts.length / limit),
     });
   } catch (err) {
     console.error(err);
@@ -177,6 +192,7 @@ export const updatePost = async (req, res) => {
         phoneNumber: postData.phoneNumber,
         images: postData.images,
         listingType: postData.listingType, // ⚠️ schema’da olmalı
+        approved: false,
 
         postDetail: {
           update: {
