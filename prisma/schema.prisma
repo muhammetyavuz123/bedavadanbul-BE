@@ -12,7 +12,20 @@ datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
 }
+model Category {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String   @unique
+  parentId    String?  @db.ObjectId
+  isActive    Boolean  @default(true)
+  isApproved  Boolean  @default(false)
+  createdBy   String   // userId veya "admin"
+  createdAt   DateTime @default(now())
 
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children Category[] @relation("CategoryToCategory")
+  posts Post[]
+}
 model Post {
   id         String      @id @default(auto()) @map("_id") @db.ObjectId
   title      String
@@ -24,7 +37,6 @@ model Post {
   phoneNumber   String?
   latitude   String
   longitude  String
-  type       String
   businessName  String?
   createdAt  DateTime    @default(now())
   user       User        @relation(fields: [userId], references: [id])
@@ -34,7 +46,8 @@ model Post {
   approved  Boolean?  @default(false)
   comments   Comment[]
   listingType String @default("standard")
-
+  categoryId  String   @db.ObjectId
+  category    Category @relation(fields: [categoryId], references: [id])
 }
 
 enum Type {

@@ -15,3 +15,9 @@ export const commentLimiter = rateLimit({
   max: 20,
   message: "Çok fazla yorum yaptınız. Bir süre sonra deneyin.",
 });
+
+export const categoryLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 3,
+  message: "Günlük kategori ekleme limitine ulaştınız",
+});

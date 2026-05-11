@@ -12,6 +12,7 @@ import messageRoute from "./routes/message.route.js";
 import locationRoutes from "./routes/locations.route.js";
 import commentRoute from "./routes/comment.route.js";
 import contactRoute from "./routes/contact.route.js";
+import categoryRoute from "./routes/category.routes.js";
 
 // Rate Limit
 import { globalLimiter, commentLimiter } from "./middleware/rateLimit.js";
@@ -46,6 +47,7 @@ app.use("/api/messages", messageRoute);
 app.use("/api/locations", locationRoutes);
 app.use("/api/comments", commentLimiter, commentRoute);
 app.use("/api/contact", contactRoute);
+app.use("/api/categories", categoryRoute);
 
 app.get("/", (req, res) => res.send("API çalışıyor!"));
 

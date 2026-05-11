@@ -8,7 +8,7 @@ export const getPosts = async (req, res) => {
     const filters = {};
 
     // Dinamik filtreleme
-    const filterableFields = ["city", "district", "type", "approved"];
+    const filterableFields = ["city", "district", "categoryId", "approved"];
     filterableFields.forEach((field) => {
       if (query[field] !== undefined) {
         if (field === "approved") {
@@ -99,6 +99,7 @@ export const getPost = async (req, res) => {
     const post = await prisma.post.findUnique({
       where: { id },
       include: {
+        category: true,
         postDetail: true,
         user: {
           select: {
@@ -141,6 +142,7 @@ export const getPost = async (req, res) => {
 };
 
 export const addPost = async (req, res) => {
+  console.log("🚀 ~ addPost ~ req:", req);
   const body = req.body;
   const tokenUserId = req.userId;
 
@@ -185,7 +187,7 @@ export const updatePost = async (req, res) => {
         address: postData.address,
         city: postData.city,
         district: postData.district,
-        type: postData.type,
+        categoryId: postData.categoryId,
         businessName: postData.businessName,
         latitude: postData.latitude,
         longitude: postData.longitude,
