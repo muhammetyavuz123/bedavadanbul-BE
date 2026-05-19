@@ -48,6 +48,9 @@ model Post {
   listingType String @default("standard")
   categoryId  String   @db.ObjectId
   category    Category @relation(fields: [categoryId], references: [id])
+  adDuration    Int
+  startDate     DateTime?
+  expireDate    DateTime?
 }
 
 enum Type {

@@ -6,7 +6,7 @@ import {
   getPost,
   getPosts,
   updatePost,
-  confirmPost,
+  approvePost,
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
@@ -31,6 +31,6 @@ router.get("/:id", getPost);
 router.post("/", verifyToken, addPost);
 router.put("/:id", verifyToken, updatePost);
 router.delete("/:id", verifyToken, deletePost);
-router.put("/:id/approve", verifyToken, confirmPost);
-
+// router.put("/:id/approve", verifyToken, confirmPost);
+router.put("/:id/approve", verifyToken, approvePost);
 export default router;
