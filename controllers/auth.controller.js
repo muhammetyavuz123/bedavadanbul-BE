@@ -63,6 +63,7 @@ export const login = async (req, res) => {
 
   try {
     const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+
     const isPhone =
       cleanedIdentifier.length >= 10 && cleanedIdentifier.length <= 15;
 
@@ -80,6 +81,7 @@ export const login = async (req, res) => {
           },
         },
       });
+
       user = users.length > 0 ? users[0] : null;
     } else {
       user = await prisma.user.findUnique({
@@ -88,15 +90,20 @@ export const login = async (req, res) => {
     }
 
     if (!user) {
-      return res.status(400).json({ message: "Geçersiz kullanıcı bilgisi!" });
+      return res.status(400).json({
+        message: "Geçersiz kullanıcı bilgisi!",
+      });
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
+
     if (!isPasswordValid) {
-      return res.status(400).json({ message: "Geçersiz şifre!" });
+      return res.status(400).json({
+        message: "Geçersiz şifre!",
+      });
     }
 
-    // ⏱️ 6 AY
+    // 6 AY
     const SIX_MONTHS = 1000 * 60 * 60 * 24 * 30 * 6;
 
     const token = jwt.sign(
@@ -112,26 +119,29 @@ export const login = async (req, res) => {
 
     const { password: _, resetToken, resetTokenExpiry, ...safeUser } = user;
 
-    // 🍪 WEB İÇİN COOKIE
+    // 🍪 SAFARI UYUMLU COOKIE
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: true,
+      sameSite: "none",
+      path: "/",
       maxAge: SIX_MONTHS,
     });
 
-    // 📦 MOBİL + WEB JSON RESPONSE
     return res.status(200).json({
       user: {
         ...safeUser,
         loginAt: Date.now(),
       },
-      token, // 🔥 ASIL OLAY BU
+      token,
       expiresIn: SIX_MONTHS,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Giriş işlemi başarısız!" });
+
+    return res.status(500).json({
+      message: "Giriş işlemi başarısız!",
+    });
   }
 };
 

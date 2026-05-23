@@ -14,32 +14,55 @@ import commentRoute from "./routes/comment.route.js";
 import contactRoute from "./routes/contact.route.js";
 import categoryRoute from "./routes/category.routes.js";
 
-// Rate Limit
 import { globalLimiter, commentLimiter } from "./middleware/rateLimit.js";
 
 dotenv.config();
+
 const app = express();
 
-// Eğer reverse proxy varsa (Nginx, Vercel, Render…) bu ŞART
+// Proxy (Railway / Render / Nginx için şart)
 app.set("trust proxy", 1);
 
-// CORS
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:8081",
-  "https://www.bedavadanbul.com",
-];
-app.use(cors({ origin: allowedOrigins, credentials: true }));
-
-app.use(helmet());
+// BODY + COOKIE
 app.use(express.json());
 app.use(cookieParser());
 app.use(mongoSanitize());
 
-// Global limit – sadece 1 kere uygulanır
+// SECURITY
+app.use(helmet());
+
+// CORS (SAFARI + CROSS DOMAIN FIX)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:8081",
+  "https://bedavadanbul.com",
+  "https://www.bedavadanbul.com",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // mobile / postman / server-to-server
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS blocked"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  }),
+);
+
+// preflight fix (SAFARI CRITICAL)
+app.options("*", cors({ credentials: true }));
+
+// RATE LIMIT
 app.use(globalLimiter);
 
-// Routes
+// ROUTES
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/posts", postRoute);
@@ -51,7 +74,7 @@ app.use("/api/categories", categoryRoute);
 
 app.get("/", (req, res) => res.send("API çalışıyor!"));
 
-app.listen(8800, () => console.log("Server is running!"));
-// app.listen(8800, "0.0.0.0", () => {
-//   console.log("Backend running on 8800");
-// });
+// LISTEN
+app.listen(8800, () => {
+  console.log("Server is running on port 8800");
+});
