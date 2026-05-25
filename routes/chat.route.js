@@ -5,13 +5,13 @@ import {
   addChat,
   readChat,
 } from "../controllers/chat.controller.js";
-import { verifyToken } from "../middleware/verifyToken.js";
+import { protect } from "../middleware/protect.js";
 
 const router = express.Router();
 
-router.get("/", verifyToken, getChats);
-router.get("/:id", verifyToken, getChat);
-router.post("/", verifyToken, addChat);
-router.put("/read/:id", verifyToken, readChat);
+router.get("/", protect, getChats);
+router.get("/:id", protect, getChat);
+router.post("/", protect, addChat);
+router.put("/read/:id", protect, readChat);
 
 export default router;

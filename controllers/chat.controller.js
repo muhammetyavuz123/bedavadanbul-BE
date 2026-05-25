@@ -1,7 +1,7 @@
 import prisma from "../lib/prisma.js";
 
 export const getChats = async (req, res) => {
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
 
   try {
     const chats = await prisma.chat.findMany({
@@ -36,7 +36,7 @@ export const getChats = async (req, res) => {
 };
 
 export const getChat = async (req, res) => {
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
 
   try {
     const chat = await prisma.chat.findUnique({
@@ -73,7 +73,7 @@ export const getChat = async (req, res) => {
 };
 
 export const addChat = async (req, res) => {
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
   try {
     const newChat = await prisma.chat.create({
       data: {
@@ -88,9 +88,8 @@ export const addChat = async (req, res) => {
 };
 
 export const readChat = async (req, res) => {
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
 
-  
   try {
     const chat = await prisma.chat.update({
       where: {

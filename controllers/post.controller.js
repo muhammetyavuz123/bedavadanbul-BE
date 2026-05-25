@@ -175,7 +175,7 @@ export const getPost = async (req, res) => {
 
 export const addPost = async (req, res) => {
   const body = req.body;
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
 
   try {
     const { listingType, adDuration, ...rest } = body.postData;
@@ -264,7 +264,7 @@ export const updatePost = async (req, res) => {
     const { postData, postDetail } = req.body;
 
     // 🔐 (opsiyonel ama önemli) -> sadece kendi postunu güncelleyebilsin
-    // const userId = req.userId;
+    // const userId = req.user.id;;
 
     const updatedPost = await prisma.post.update({
       where: { id: postId },
@@ -305,7 +305,7 @@ export const updatePost = async (req, res) => {
 
 export const deletePost = async (req, res) => {
   const id = req.params.id;
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
 
   try {
     const post = await prisma.post.findUnique({

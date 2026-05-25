@@ -6,18 +6,18 @@ import {
   updateUser,
   savePost,
   profilePosts,
-  getNotificationNumber
+  getNotificationNumber,
 } from "../controllers/user.controller.js";
-import {verifyToken} from "../middleware/verifyToken.js";
+import { protect } from "../middleware/protect.js";
 
 const router = express.Router();
 
 router.get("/", getUsers);
-// router.get("/search/:id", verifyToken, getUser);
-router.put("/:id", verifyToken, updateUser);
-router.delete("/:id", verifyToken, deleteUser);
-router.post("/save", verifyToken, savePost);
-router.get("/profilePosts", verifyToken, profilePosts);
-router.get("/notification", verifyToken, getNotificationNumber);
+// router.get("/search/:id", protect, getUser);
+router.put("/:id", protect, updateUser);
+router.delete("/:id", protect, deleteUser);
+router.post("/save", protect, savePost);
+router.get("/profilePosts", protect, profilePosts);
+router.get("/notification", protect, getNotificationNumber);
 
 export default router;

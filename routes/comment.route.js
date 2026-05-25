@@ -4,12 +4,12 @@ import {
   postComment,
   deleteComment,
 } from "../controllers/comments.controller.js";
-import { verifyToken } from "../middleware/verifyToken.js";
+import { protect } from "../middleware/protect.js";
 
 const router = express.Router();
 
 router.get("/:id", getComment);
-router.post("/", verifyToken, postComment);
-router.delete("/:id", verifyToken, deleteComment);
+router.post("/", protect, postComment);
+router.delete("/:id", protect, deleteComment);
 
 export default router;

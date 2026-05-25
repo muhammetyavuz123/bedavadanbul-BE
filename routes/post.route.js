@@ -1,5 +1,5 @@
 import express from "express";
-import { verifyToken } from "../middleware/verifyToken.js";
+import { protect } from "../middleware/protect.js";
 import {
   addPost,
   deletePost,
@@ -15,9 +15,9 @@ const router = express.Router();
 router.get("/", getPosts);
 
 // 2️⃣ Login olan kullanıcı: sadece kendi postları
-router.get("/me", verifyToken, async (req, res) => {
+router.get("/me", protect, async (req, res) => {
   try {
-    // verifyToken ile req.user geldiğini varsayıyoruz
+    // protect ile req.user geldiğini varsayıyoruz
     req.query.userId = req.user.id;
     await getPosts(req, res); // aynı controller kullanılıyor
   } catch (err) {
@@ -28,9 +28,9 @@ router.get("/me", verifyToken, async (req, res) => {
 
 // Diğer işlemler (add, update, delete, approve) login gerekli
 router.get("/:id", getPost);
-router.post("/", verifyToken, addPost);
-router.put("/:id", verifyToken, updatePost);
-router.delete("/:id", verifyToken, deletePost);
-// router.put("/:id/approve", verifyToken, confirmPost);
-router.put("/:id/approve", verifyToken, approvePost);
+router.post("/", protect, addPost);
+router.put("/:id", protect, updatePost);
+router.delete("/:id", protect, deletePost);
+// router.put("/:id/approve", protect, confirmPost);
+router.put("/:id/approve", protect, approvePost);
 export default router;

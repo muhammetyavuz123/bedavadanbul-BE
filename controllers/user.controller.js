@@ -26,7 +26,7 @@ export const getUser = async (req, res) => {
 
 export const updateUser = async (req, res) => {
   const id = req.params.id;
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
   const { password, avatar, ...inputs } = req.body;
 
   if (id !== tokenUserId) {
@@ -59,7 +59,7 @@ export const updateUser = async (req, res) => {
 
 export const deleteUser = async (req, res) => {
   const id = req.params.id;
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
 
   if (id !== tokenUserId) {
     return res.status(403).json({ message: "Not Authorized!" });
@@ -78,7 +78,7 @@ export const deleteUser = async (req, res) => {
 
 export const savePost = async (req, res) => {
   const postId = req.body.postId;
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
 
   try {
     const savedPost = await prisma.savedPost.findUnique({
@@ -113,7 +113,7 @@ export const savePost = async (req, res) => {
 };
 
 export const profilePosts = async (req, res) => {
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
   try {
     const userPosts = await prisma.post.findMany({
       where: { userId: tokenUserId },
@@ -134,7 +134,7 @@ export const profilePosts = async (req, res) => {
 };
 
 export const getNotificationNumber = async (req, res) => {
-  const tokenUserId = req.userId;
+  const tokenUserId = req.user.id;
   try {
     const number = await prisma.chat.count({
       where: {
