@@ -83,8 +83,12 @@ model SavedPost {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   user      User     @relation(fields: [userId], references: [id])
   post      Post     @relation(fields: [postId], references: [id])
-  userId    String   @unique @db.ObjectId
-  postId    String   @unique @db.ObjectId
+  // ⚠️ userId/postId üzerinde AYRI AYRI @unique OLMAMALI: bu, bir kullanıcının
+  // sistemde toplamda sadece 1 kayıtlı ilanı, bir ilanın da toplamda sadece
+  // 1 kullanıcı tarafından kaydedilebilmesi anlamına gelir (favoriler özelliğini
+  // fiilen kırar). Doğru kısıt, aşağıdaki bileşik @@unique([userId, postId]).
+  userId    String   @db.ObjectId
+  postId    String   @db.ObjectId
   createdAt DateTime @default(now())
 
   @@unique([userId, postId])

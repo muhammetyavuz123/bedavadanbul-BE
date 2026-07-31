@@ -1,9 +1,24 @@
 import prisma from "../lib/prisma.js";
 import bcrypt from "bcrypt";
 
+// Güvenlik: password, resetToken ve resetTokenExpiry gibi hassas alanlar
+// hiçbir zaman client'a dönülmemeli. Bu yüzden findMany/findUnique çağrılarında
+// açıkça hangi alanların dönmesi gerektiğini `select` ile belirtiyoruz.
+const PUBLIC_USER_SELECT = {
+  id: true,
+  username: true,
+  avatar: true,
+  city: true,
+  district: true,
+  role: true,
+  createdAt: true,
+};
+
 export const getUsers = async (req, res) => {
   try {
-    const users = await prisma.user.findMany();
+    const users = await prisma.user.findMany({
+      select: PUBLIC_USER_SELECT,
+    });
     res.status(200).json(users);
   } catch (err) {
     console.log(err);
@@ -16,6 +31,7 @@ export const getUser = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
+      select: PUBLIC_USER_SELECT,
     });
     res.status(200).json(user);
   } catch (err) {

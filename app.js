@@ -74,7 +74,24 @@ app.use("/api/categories", categoryRoute);
 
 app.get("/", (req, res) => res.send("API çalışıyor!"));
 
+// 404 — tanımlı olmayan route'lar için
+app.use((req, res) => {
+  res.status(404).json({ message: "Endpoint bulunamadı" });
+});
+
+// Merkezi hata yakalayıcı (her zaman en sonda tanımlanmalı)
+app.use((err, req, res, next) => {
+  console.error(err);
+
+  if (err.message === "CORS blocked") {
+    return res.status(403).json({ message: "CORS tarafından engellendi" });
+  }
+
+  res.status(500).json({ message: "Sunucu hatası" });
+});
+
 // LISTEN
-app.listen(8800, () => {
-  console.log("Server is running on port 8800");
+const PORT = process.env.PORT || 8800;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });

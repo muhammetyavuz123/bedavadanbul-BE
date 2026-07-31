@@ -1,5 +1,6 @@
 import express from "express";
 import { protect } from "../middleware/protect.js";
+import { isAdmin } from "../middleware/isAdmin.js";
 import {
   addPost,
   deletePost,
@@ -31,6 +32,6 @@ router.get("/:id", getPost);
 router.post("/", protect, addPost);
 router.put("/:id", protect, updatePost);
 router.delete("/:id", protect, deletePost);
-// router.put("/:id/approve", protect, confirmPost);
-router.put("/:id/approve", protect, approvePost);
+// İlan onaylama sadece adminlere açık olmalı
+router.put("/:id/approve", protect, isAdmin, approvePost);
 export default router;

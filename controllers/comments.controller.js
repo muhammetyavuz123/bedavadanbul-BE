@@ -1,11 +1,14 @@
 import prisma from "../lib/prisma.js";
-import jwt from "jsonwebtoken";
 
 // Yorum oluştur
 export const postComment = async (req, res) => {
-  const { content, postId, userId } = req.body;
+  const { content, postId } = req.body;
+  // ⚠️ userId ASLA client'tan alınmamalı; her zaman `protect` middleware'inin
+  // doğruladığı oturumdan (req.user) geliyor olmalı. Aksi halde bir kullanıcı
+  // başka biri adına yorum yazabilir.
+  const userId = req.user.id;
 
-  if (!content || !postId || !userId) {
+  if (!content || !postId) {
     return res.status(400).json({ message: "Eksik bilgi" });
   }
 
@@ -46,15 +49,13 @@ export const getComment = async (req, res) => {
 };
 export const deleteComment = async (req, res) => {
   const commentId = req.params.id;
-  const token = req.cookies?.token;
-
-  if (!token) {
-    return res.status(401).json({ message: "Yetkisiz." });
-  }
+  // Bu route zaten `protect` middleware'inden geçiyor, dolayısıyla req.user
+  // burada garanti dolu. Ayrıca cookie'den manuel token okumaya/doğrulamaya
+  // gerek yok; bu hem gereksiz kod tekrarıydı hem de cookie üretimde
+  // gönderilmediğinde (cross-domain) yanlışlıkla 401 dönmesine yol açıyordu.
+  const userId = req.user.id;
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
     });
@@ -63,7 +64,7 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ message: "Yorum bulunamadı." });
     }
 
-    if (comment.userId !== payload.id) {
+    if (comment.userId !== userId) {
       return res.status(403).json({ message: "Bu yorumu silme yetkiniz yok." });
     }
 

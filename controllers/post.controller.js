@@ -142,31 +142,37 @@ export const getPost = async (req, res) => {
       },
     });
 
+    if (!post) {
+      return res.status(404).json({ message: "İlan bulunamadı" });
+    }
+
+    // ⚠️ ÖNCEKİ HÂL BUGLU: jwt.verify callback'i asenkron olduğu için, altındaki
+    // `res.status(200).json({ ...post, isSaved: false })` her zaman HEMEN
+    // çalışıyor ve cevabı gönderiyordu; callback daha sonra tekrar cevap
+    // göndermeye çalışınca "headers already sent" hatası oluşuyordu ve
+    // isSaved alanı fiilen hiçbir zaman true dönmüyordu. Burada tamamen
+    // async/await ile tek bir cevap gönderiyoruz.
+    let isSaved = false;
     const token = req.cookies?.token;
 
     if (token) {
-      jwt.verify(token, process.env.JWT_SECRET, async (err, payload) => {
-        if (!err) {
-          const saved = await prisma.savedPost.findUnique({
-            where: {
-              userId_postId: {
-                postId: id,
-                userId: payload.id,
-              },
+      try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET);
+        const saved = await prisma.savedPost.findUnique({
+          where: {
+            userId_postId: {
+              postId: id,
+              userId: payload.id,
             },
-          });
-          try {
-            res.status(200).json({ ...post, isSaved: saved ? true : false });
-            return;
-          } catch (err) {
-            if (!res.headersSent) {
-              res.status(500).json({ message: "Something went wrong" });
-            }
-          }
-        }
-      });
+          },
+        });
+        isSaved = !!saved;
+      } catch (err) {
+        // Token geçersiz/süresi dolmuşsa sessizce isSaved=false ile devam et
+      }
     }
-    res.status(200).json({ ...post, isSaved: false });
+
+    res.status(200).json({ ...post, isSaved });
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Failed to get post" });
