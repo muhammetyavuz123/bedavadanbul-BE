@@ -1,7 +1,6 @@
 import { data } from "../data/il-ilce.js";
 
 export const getCities = async (req, res) => {
-  console.log("🚀 ~ getCities ~ req:", req);
   const query = req.query;
   try {
     const iller = data.map((il) => ({
