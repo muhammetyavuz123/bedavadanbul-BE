@@ -8,11 +8,24 @@ import { isClean } from "../utils/filter.js";
 export const getCategories = async (req, res) => {
   const { all } = req.query;
 
-  const categories = await prisma.category.findMany({
-    where: all ? {} : { isApproved: true, isActive: true },
-  });
+  // ⚠️ KRİTİK FİX: burada try/catch yoktu. Prisma sorgusu herhangi bir
+  // sebeple (Mongo Atlas'ta geçici bağlantı/timeout hatası vb.) reddedilirse
+  // bu, Express 4'ün YAKALAYAMADIĞI bir "unhandled promise rejection" oluyordu.
+  // Node.js bu durumda TÜM sunucu process'ini çökertiyor (varsayılan davranış).
+  // Railway bunu görüp container'ı yeniden başlatıyor — bu da o birkaç
+  // saniyelik pencerede kategoriler/postlar/lokasyonlar dahil TÜM isteklerin
+  // 502 dönmesine, tarayıcının bunu (cevap hiç gelmediği için ACAO header'ı
+  // da okuyamadığından) CORS hatası gibi göstermesine yol açıyordu.
+  try {
+    const categories = await prisma.category.findMany({
+      where: all ? {} : { isApproved: true, isActive: true },
+    });
 
-  res.json(categories);
+    res.json(categories);
+  } catch (err) {
+    console.error("getCategories hatası:", err);
+    res.status(500).json({ message: "Kategoriler alınamadı" });
+  }
 };
 
 export const createCategory = async (req, res) => {
@@ -34,30 +47,41 @@ export const createCategory = async (req, res) => {
   // 4. parentId temizle
   const cleanParentId = parentId && parentId !== "" ? parentId : null;
 
-  // 5. create
-  const category = await prisma.category.create({
-    data: {
-      name,
-      slug,
-      parentId: cleanParentId,
-      isApproved: false,
-      createdBy: req.user?.id || "guest",
-    },
-  });
+  // 5. create (aynı çökme riski — bkz. getCategories'teki not)
+  try {
+    const category = await prisma.category.create({
+      data: {
+        name,
+        slug,
+        parentId: cleanParentId,
+        isApproved: false,
+        createdBy: req.user?.id || "guest",
+      },
+    });
 
-  res.json(category);
+    res.json(category);
+  } catch (err) {
+    console.error("createCategory hatası:", err);
+    res.status(500).json({ message: "Kategori oluşturulamadı" });
+  }
 };
 
 // ADMIN ONAY
 export const approveCategory = async (req, res) => {
   const { id } = req.params;
 
-  const updated = await prisma.category.update({
-    where: { id },
-    data: { isApproved: true },
-  });
+  // Aynı çökme riski burada da vardı (bkz. getCategories'teki not).
+  try {
+    const updated = await prisma.category.update({
+      where: { id },
+      data: { isApproved: true },
+    });
 
-  res.json(updated);
+    res.json(updated);
+  } catch (err) {
+    console.error("approveCategory hatası:", err);
+    res.status(500).json({ message: "Kategori onaylanamadı" });
+  }
 };
 
 export const deleteCategory = async (req, res) => {

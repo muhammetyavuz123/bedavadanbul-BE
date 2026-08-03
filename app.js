@@ -18,6 +18,24 @@ import { globalLimiter, commentLimiter } from "./middleware/rateLimit.js";
 
 dotenv.config();
 
+// ⚠️ GÜVENLİK AĞI: Express 4, async route handler'lar içindeki reddedilen
+// (rejected) promise'leri OTOMATİK yakalamaz. Böyle bir yerde (örn. Mongo
+// Atlas'ta geçici bir bağlantı hatası) try/catch unutulmuşsa, Node.js bunu
+// "unhandled rejection" sayıp VARSAYILAN OLARAK TÜM PROCESS'İ ÇÖKERTİR.
+// Railway bunu görüp container'ı restart eder — bu da o birkaç saniyelik
+// pencerede İLGİSİZ endpoint'ler dahil TÜM isteklerin 502 dönmesine, ve
+// tarayıcının bunu (cevap hiç gelmediği için) CORS hatası gibi göstermesine
+// yol açar. category.controller.js'te tam olarak bu bug bulundu ve
+// düzeltildi; burası ileride benzer bir yerin process'i çökertmesini
+// önleyen ek bir güvenlik katmanı.
+process.on("unhandledRejection", (reason) => {
+  console.error("UNHANDLED REJECTION (process çökmedi):", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION (process çökmedi):", err);
+});
+
 const app = express();
 
 // Proxy (Railway / Render / Nginx için şart)
