@@ -322,9 +322,27 @@ export const deletePost = async (req, res) => {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    if (post.userId !== tokenUserId) {
+    // ⚠️ Sadece ilan sahibi DEĞİL, admin de silebilmeli — admin panelinden
+    // istediği ilanı kaldırabilmesi lazım.
+    const isOwner = post.userId === tokenUserId;
+    const isAdminUser = req.user.role === "admin";
+
+    if (!isOwner && !isAdminUser) {
       return res.status(403).json({ message: "Not Authorized" });
     }
+
+    // ⚠️ KRİTİK FİX: schema.prisma'da Comment.post ve SavedPost.post ZORUNLU
+    // ilişkiler. Bu post'a ait yorum ya da kaydeden kullanıcı varken sadece
+    // postDetail siliniyor, Post'un kendisi silinmeye çalışılınca Prisma bu
+    // zorunlu ilişkiyi ihlal ettiği için hata fırlatıyordu — kullanıcı bunu
+    // genel "Failed to delete post" (500) olarak görüyordu.
+    await prisma.comment.deleteMany({
+      where: { postId: id },
+    });
+
+    await prisma.savedPost.deleteMany({
+      where: { postId: id },
+    });
 
     await prisma.postDetail.deleteMany({
       where: { postId: id },
@@ -336,7 +354,7 @@ export const deletePost = async (req, res) => {
 
     res.status(200).json({ message: "Post deleted" });
   } catch (err) {
-    console.error(err);
+    console.error("deletePost hatası:", err);
     res.status(500).json({ message: "Failed to delete post" });
   }
 };

@@ -70,7 +70,10 @@ app.use(
       return callback(new Error("CORS blocked"));
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    // ⚠️ "PATCH" eksikti — kategori onaylama endpoint'i (PATCH /categories/approve/:id)
+    // bu yüzden tarayıcının preflight (OPTIONS) kontrolünden geçemiyor, istek
+    // sunucuya hiç ulaşmadan CORS tarafından engelleniyordu.
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),
 );
 

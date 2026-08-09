@@ -100,6 +100,22 @@ export const deleteCategory = async (req, res) => {
       });
     }
 
+    // 2b. bu kategoriye bağlı ilan var mı kontrol et
+    // ⚠️ schema.prisma'da Post.category ZORUNLU bir ilişki. Bu kategoriye
+    // bağlı en az 1 ilan varken kategori silinmeye çalışılırsa Prisma bunu
+    // reddediyordu ve kullanıcı sadece genel "Silme hatası" görüyordu,
+    // gerçek sebebi (bağlı ilanlar) hiç anlayamıyordu.
+    const linkedPosts = await prisma.post.findMany({
+      where: { categoryId: id },
+      select: { id: true },
+    });
+
+    if (linkedPosts.length > 0) {
+      return res.status(400).json({
+        message: `Bu kategoriye bağlı ${linkedPosts.length} ilan var. Önce bu ilanları silin veya başka bir kategoriye taşıyın.`,
+      });
+    }
+
     // 3. sil
     await prisma.category.delete({
       where: { id },
@@ -107,7 +123,7 @@ export const deleteCategory = async (req, res) => {
 
     res.json({ message: "Kategori silindi" });
   } catch (err) {
-    console.error(err);
+    console.error("deleteCategory hatası:", err);
     res.status(500).json({ message: "Silme hatası" });
   }
 };
