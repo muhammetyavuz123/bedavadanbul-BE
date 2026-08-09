@@ -49,6 +49,22 @@ export const createCategory = async (req, res) => {
 
   // 5. create (aynı çökme riski — bkz. getCategories'teki not)
   try {
+    // ⚠️ Aynı isimde kategori zaten varsa (onaylı ya da onay bekleyen fark
+    // etmeksizin) tekrar oluşturmak yerine mevcut olanı bildiriyoruz.
+    // Not: schema.prisma'da slug @unique olsa da bu index MongoDB'ye her
+    // zaman uygulanmamış olabilir, o yüzden burada ayrıca elle de
+    // kontrol ediyoruz — aksi halde aynı isimden birden fazla kategori
+    // sessizce oluşabiliyordu.
+    const existing = await prisma.category.findFirst({ where: { slug } });
+
+    if (existing) {
+      return res.status(409).json({
+        message: `"${existing.name}" adında bir kategori zaten var.`,
+        existingId: existing.id,
+        existingName: existing.name,
+      });
+    }
+
     const category = await prisma.category.create({
       data: {
         name,
