@@ -41,13 +41,35 @@ export const getPosts = async (req, res) => {
       filters.userId = query.userId;
     }
 
-    // SEARCH
+    // ⚠️ FIX: Arama sadece ilan BAŞLIĞında geçiyordu. Kullanıcı "sağlık"
+    // veya "diş" gibi bir kategori adı yazdığında, bu kelime ilan
+    // başlığında birebir geçmediği sürece (çoğu ilan başlığı işletme/
+    // kampanya adı olduğu için genelde geçmiyor) sonuç hep boş dönüyordu
+    // — ilan aslında o kategoriye bağlıydı ama arama bunu hiç kontrol
+    // etmiyordu. Şimdi başlığın yanında kategori adını ve ilan
+    // açıklamasını da (postDetail.desc) kontrol ediyoruz.
     if (query.search) {
       filters.OR = [
         {
           title: {
             contains: query.search,
             mode: "insensitive",
+          },
+        },
+        {
+          category: {
+            name: {
+              contains: query.search,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          postDetail: {
+            desc: {
+              contains: query.search,
+              mode: "insensitive",
+            },
           },
         },
       ];
