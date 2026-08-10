@@ -8,13 +8,33 @@ export const getPosts = async (req, res) => {
     const filters = {};
 
     // Dinamik filtreleme
-    const filterableFields = ["city", "district", "categoryId"];
+    const filterableFields = ["city", "district"];
 
     filterableFields.forEach((field) => {
       if (query[field] !== undefined) {
         filters[field] = query[field];
       }
     });
+
+    // ⚠️ FIX: "Sağlık" gibi bir ANA kategoride "Tümü" seçilince, mobil/web
+    // tarafı o ana kategorinin id'sini gönderiyor. Ama ilanlar hep ALT
+    // kategoriye bağlanıyor (örn. "Ağız ve Diş Sağlığı"), ana kategorinin
+    // id'siyle birebir eşleşen hiçbir ilan yok. Eskiden burada düz eşitlik
+    // yapıldığı için sonuç hep boş dönüyordu; alt kategori direkt seçilince
+    // (örn. "Ağız ve Diş Sağlığı") birebir eşleştiği için çalışıyordu.
+    // Çözüm: gelen categoryId bir ANA kategoriyse, o kategoriye bağlı tüm
+    // alt kategori id'lerini de sorguya dahil ediyoruz.
+    if (query.categoryId) {
+      const childCategories = await prisma.category.findMany({
+        where: { parentId: query.categoryId },
+        select: { id: true },
+      });
+
+      filters.categoryId =
+        childCategories.length > 0
+          ? { in: [query.categoryId, ...childCategories.map((c) => c.id)] }
+          : query.categoryId;
+    }
 
     // userId filtre
     if (query.userId) {
