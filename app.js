@@ -14,7 +14,7 @@ import commentRoute from "./routes/comment.route.js";
 import contactRoute from "./routes/contact.route.js";
 import categoryRoute from "./routes/category.routes.js";
 
-import { globalLimiter, commentLimiter } from "./middleware/rateLimit.js";
+import { globalLimiter } from "./middleware/rateLimit.js";
 
 dotenv.config();
 
@@ -89,7 +89,10 @@ app.use("/api/users", userRoute);
 app.use("/api/posts", postRoute);
 app.use("/api/messages", messageRoute);
 app.use("/api/locations", locationRoutes);
-app.use("/api/comments", commentLimiter, commentRoute);
+// ⚠️ FIX: commentLimiter artık burada değil — bkz. comment.route.js. Burada
+// kalması, yorumları sadece OKUYAN (GET) isteklerin bile "yorum" hakkını
+// tüketmesine yol açıyordu.
+app.use("/api/comments", commentRoute);
 app.use("/api/contact", contactRoute);
 app.use("/api/categories", categoryRoute);
 
