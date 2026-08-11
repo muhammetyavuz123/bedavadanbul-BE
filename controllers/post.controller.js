@@ -129,8 +129,15 @@ export const getPosts = async (req, res) => {
       where: filters,
     });
 
-    // CUSTOM SORT
+    // ⚠️ FIX: Anasayfadaki "Sona Erecek Kampanyalar" bölümü için eklendi.
+    // `sort=expiring` gönderildiğinde, en yakında sona erecek (expireDate'i
+    // en yakın olan) ilanlar en başa geliyor. Bu parametre gönderilmediğinde
+    // eski davranış (listingType önceliği + en yeni) hiç değişmiyor.
     const sortedPosts = posts.sort((a, b) => {
+      if (query.sort === "expiring") {
+        return new Date(a.expireDate) - new Date(b.expireDate);
+      }
+
       const order = {
         doping: 3,
         featured: 2,
