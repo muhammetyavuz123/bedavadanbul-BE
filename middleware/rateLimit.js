@@ -47,3 +47,58 @@ export const categoryLimiter = rateLimit({
   skipFailedRequests: true,
   keyGenerator: (req) => req.user?.id || req.ip,
 });
+
+// ===== İşletme dizini: özel soru-cevap & yorumlar =====
+// Hepsi giriş gerektiren route'larda kullanılır (req.user dolu), bu yüzden
+// IP yerine kullanıcı id'sine göre sayılır. skipFailedRequests: true ile
+// doğrulamadan dönen (400/403/404) denemeler hakkı tüketmez.
+export const inquiryLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 10,
+  message: { message: "Günlük soru gönderme limitine ulaştınız." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+export const inquiryMessageLimiter = rateLimit({
+  windowMs: 30 * 60 * 1000,
+  max: 60,
+  message: { message: "Çok fazla mesaj gönderdiniz. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+export const reviewLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 15,
+  message: { message: "Günlük yorum limitine ulaştınız." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// Favori ekleme/çıkarma
+export const favoriteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 120,
+  message: { message: "Çok fazla favori işlemi yaptınız. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// Yoruma işletme yanıtı
+export const replyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: { message: "Çok fazla yanıt gönderdiniz. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// Profil görüntüleme / arama / yol tarifi sayacı (giriş gerektirmez, IP başına)
+export const trackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120,
+  standardHeaders: false,
+  legacyHeaders: false,
+  handler: (req, res) => res.status(204).end(),
+});

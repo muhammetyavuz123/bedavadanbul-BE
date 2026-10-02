@@ -188,6 +188,16 @@ export const getPost = async (req, res) => {
             avatar: true,
           },
         },
+        // Kampanya bir işletme profiline bağlıysa ilan sayfasında link verilir
+        business: {
+          select: {
+            id: true,
+            name: true,
+            logo: true,
+            isVerified: true,
+            isActive: true,
+          },
+        },
       },
     });
 
@@ -233,11 +243,26 @@ export const addPost = async (req, res) => {
   const tokenUserId = req.user.id;
 
   try {
-    const { listingType, adDuration, ...rest } = body.postData;
+    // businessId istemciden ASLA alınmaz (başkasının işletmesine bağlanmasın);
+    // kullanıcının kendi işletme profili varsa sunucu kendisi bağlar.
+    const {
+      listingType,
+      adDuration,
+      businessId: _ignoredBusinessId,
+      business: _ignoredBusiness,
+      ...rest
+    } = body.postData;
+
+    const ownBusiness = await prisma.business.findUnique({
+      where: { ownerId: tokenUserId },
+      select: { id: true },
+    });
 
     const newPost = await prisma.post.create({
       data: {
         ...rest,
+
+        ...(ownBusiness ? { businessId: ownBusiness.id } : {}),
 
         listingType: listingType || "standard",
 

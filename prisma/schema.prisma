@@ -25,6 +25,7 @@ model Category {
   parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children Category[] @relation("CategoryToCategory")
   posts Post[]
+  businesses Business[]
 }
 model Post {
   id         String      @id @default(auto()) @map("_id") @db.ObjectId
@@ -51,6 +52,12 @@ model Post {
   adDuration    Int
   startDate     DateTime?
   expireDate    DateTime?
+
+  // Kampanya, bir işletme profiline bağlıysa (işyeri hesabı ekledi ise otomatik)
+  business      Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  businessId    String?   @db.ObjectId
+
+  @@index([businessId])
 }
 
 enum Type {
@@ -113,6 +120,14 @@ model User {
   resetTokenExpiry  DateTime?
    comments   Comment[] 
    phone      String? @unique
+
+  // İşletme dizini / özel soru-cevap
+  business          Business?         @relation("BusinessOwner")
+  businessReviews   BusinessReview[]  @relation("ReviewAuthor")
+  inquiriesSent     Inquiry[]         @relation("InquiryCustomer")
+  inquiriesReceived Inquiry[]         @relation("InquiryOwner")
+  inquiryMessages   InquiryMessage[]
+  favoriteBusinesses BusinessFavorite[]
 }
 
 model Chat {
@@ -153,3 +168,127 @@ model ContactMessage {
   createdAt DateTime @default(now())
 }
 
+// ==================== İŞLETME DİZİNİ ====================
+
+// İşyeri hesabı (role: "business") başına en fazla 1 işletme profili.
+model Business {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  owner        User     @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId      String   @unique @db.ObjectId
+  name         String
+  category     Category @relation(fields: [categoryId], references: [id])
+  categoryId   String   @db.ObjectId
+  description  String?
+  address      String
+  city         String
+  district     String
+  phone        String
+  website      String?
+  workingHours String?
+  logo         String?
+  photos       String[]
+  isActive     Boolean  @default(true)
+  // Her yorum eklenip silindiğinde yeniden hesaplanır (listeleme/sıralama hızlı olsun diye)
+  ratingAvg    Float    @default(0)
+  ratingCount  Int      @default(0)
+  // Yönetici tarafından verilen "Doğrulanmış işletme" rozeti.
+  // ⚠️ Bilerek `Boolean?`: MongoDB'de mevcut kayıtlarda bu alan yok; zorunlu
+  // (non-null) tanımlansaydı Prisma eski işletmeleri okurken hata verirdi.
+  isVerified   Boolean? @default(false)
+  // Öne çıkarılan işletme (yönetici verir; featuredUntil geçince otomatik düşer)
+  isFeatured   Boolean? @default(false)
+  featuredUntil DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reviews    BusinessReview[]
+  inquiries  Inquiry[]
+  posts      Post[]
+  favorites  BusinessFavorite[]
+  dailyStats BusinessDailyStat[]
+
+  @@index([city, district])
+  @@index([categoryId])
+}
+
+// Herkese açık yorum/puan. Kullanıcı başına işletme başına tek yorum.
+model BusinessReview {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String   @db.ObjectId
+  user       User     @relation("ReviewAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @db.ObjectId
+  rating     Int
+  comment    String?
+  // İşletme sahibinin yoruma verdiği herkese açık yanıt
+  ownerReply   String?
+  ownerReplyAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([businessId, userId])
+  @@index([businessId, createdAt])
+}
+
+// Özel soru-cevap: sadece müşteri ile işletme sahibi görür.
+model Inquiry {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId     String   @db.ObjectId
+  customer       User     @relation("InquiryCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  customerId     String   @db.ObjectId
+  owner          User     @relation("InquiryOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId        String   @db.ObjectId
+  subject        String
+  // "open" (işletmenin yanıtı bekleniyor) | "answered" | "closed"
+  status         String   @default("open")
+  ownerUnread    Boolean  @default(true)
+  customerUnread Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  messages InquiryMessage[]
+
+  @@index([ownerId, updatedAt])
+  @@index([customerId, updatedAt])
+  @@index([businessId])
+}
+
+model InquiryMessage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  inquiry   Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  inquiryId String   @db.ObjectId
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  senderId  String   @db.ObjectId
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([inquiryId, createdAt])
+}
+
+// Kullanıcının favori işletmeleri
+model BusinessFavorite {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @db.ObjectId
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String   @db.ObjectId
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, businessId])
+  @@index([userId, createdAt])
+}
+
+// Günlük sayaçlar (profil görüntüleme, arama, yol tarifi). Kişisel veri tutmaz.
+model BusinessDailyStat {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String   @db.ObjectId
+  // "2026-10-02" (Türkiye saatine göre)
+  date       String
+  views      Int      @default(0)
+  calls      Int      @default(0)
+  directions Int      @default(0)
+
+  @@unique([businessId, date])
+}
