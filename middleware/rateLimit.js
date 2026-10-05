@@ -85,6 +85,24 @@ export const favoriteLimiter = rateLimit({
   keyGenerator: (req) => String(req.user.id),
 });
 
+// Cihaz bildirim kaydı
+export const pushRegisterLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: { message: "Çok fazla istek. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// Yönetici toplu bildirim gönderimi
+export const pushAdminLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  message: { message: "Saatlik bildirim gönderme sınırına ulaşıldı." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
 // Yoruma işletme yanıtı
 export const replyLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,

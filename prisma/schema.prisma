@@ -128,6 +128,8 @@ model User {
   inquiriesReceived Inquiry[]         @relation("InquiryOwner")
   inquiryMessages   InquiryMessage[]
   favoriteBusinesses BusinessFavorite[]
+  pushTokens         PushToken[]
+  notifications      UserNotification[]
 }
 
 model Chat {
@@ -277,6 +279,52 @@ model BusinessFavorite {
 
   @@unique([userId, businessId])
   @@index([userId, createdAt])
+}
+
+// Mobil bildirim için cihaz anahtarları (Expo Push Token)
+model PushToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @db.ObjectId
+  token     String   @unique
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// Uygulama içi bildirim kutusu (yeni soru, yeni yorum, yoruma yanıt, toplu duyuru)
+model UserNotification {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String    @db.ObjectId
+  title     String
+  body      String
+  // "inquiry" | "review" | "broadcast" | "general"
+  kind      String    @default("general")
+  // inquiry -> inquiryId, review -> businessId
+  refId     String?
+  // broadcast için hedef ekran: "home" | "campaigns" | "businesses"
+  screen    String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+}
+
+// Yöneticinin gönderdiği toplu bildirimlerin geçmişi
+model PushBroadcast {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  body       String
+  audience   String
+  recipients Int      @default(0)
+  adminId    String   @db.ObjectId
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
 }
 
 // Günlük sayaçlar (profil görüntüleme, arama, yol tarifi). Kişisel veri tutmaz.

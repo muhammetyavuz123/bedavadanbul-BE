@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { isClean } from "../utils/filter.js";
+import { notifyUsers, previewText } from "../utils/notify.js";
 import { data as ilIlceData } from "../data/il-ilce.js";
 import {
   notifyOwnerNewInquiry,
@@ -464,6 +465,12 @@ export const upsertReview = async (req, res) => {
         rating,
         comment: comment || "",
       });
+      notifyUsers([business.ownerId], {
+        title: `${business.name} için yeni yorum`,
+        body: `${"★".repeat(rating)} ${previewText(comment || "Yorum yazılmadan puanlandı.", 100)}`,
+        kind: "review",
+        refId: id,
+      });
     }
     res.status(201).json(review);
   } catch (err) {
@@ -553,6 +560,13 @@ export const createInquiry = async (req, res) => {
       businessName: business.name,
       subject,
       message,
+    });
+
+    notifyUsers([business.ownerId], {
+      title: `Yeni soru: ${previewText(subject, 40)}`,
+      body: previewText(message, 120),
+      kind: "inquiry",
+      refId: inquiry.id,
     });
 
     res.status(201).json(inquiry);
@@ -700,6 +714,27 @@ export const addInquiryMessage = async (req, res) => {
         : { status: "open", ownerUnread: true, customerUnread: false },
     });
 
+    // Karşı tarafa mobil bildirim
+    prisma.inquiry
+      .findUnique({
+        where: { id: inquiry.id },
+        select: {
+          business: { select: { name: true } },
+          customer: { select: { username: true } },
+        },
+      })
+      .then((info) =>
+        notifyUsers([fromOwner ? inquiry.customerId : inquiry.ownerId], {
+          title: fromOwner
+            ? info?.business?.name || "İşletme"
+            : info?.customer?.username || "Müşteri",
+          body: previewText(message, 120),
+          kind: "inquiry",
+          refId: inquiry.id,
+        }),
+      )
+      .catch((err) => console.error("Push hazırlanamadı:", err));
+
     // E-posta yalnızca karşı tarafın "okunmamış" durumu false -> true olurken
     // gönderilir; arka arkaya yazılan mesajlar gelen kutusunu mail yağmuruna çevirmez.
     const needsMail = fromOwner ? !inquiry.customerUnread : !inquiry.ownerUnread;
@@ -794,6 +829,12 @@ export const replyToReview = async (req, res) => {
         businessName: review.business.name,
         businessId: review.business.id,
         reply,
+      });
+      notifyUsers([review.userId], {
+        title: `${review.business.name} yorumunuza yanıt verdi`,
+        body: previewText(reply, 120),
+        kind: "review",
+        refId: review.business.id,
       });
     }
     res.json(updated);

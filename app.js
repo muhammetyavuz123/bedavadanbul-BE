@@ -14,6 +14,7 @@ import commentRoute from "./routes/comment.route.js";
 import contactRoute from "./routes/contact.route.js";
 import categoryRoute from "./routes/category.routes.js";
 import businessRoute from "./routes/business.route.js";
+import notificationRoute from "./routes/notification.route.js";
 import { sitemap } from "./controllers/seo.controller.js";
 
 import { globalLimiter } from "./middleware/rateLimit.js";
@@ -98,6 +99,7 @@ app.use("/api/comments", commentRoute);
 app.use("/api/contact", contactRoute);
 app.use("/api/categories", categoryRoute);
 app.use("/api/businesses", businessRoute);
+app.use("/api/notifications", notificationRoute);
 app.get("/api/sitemap.xml", sitemap);
 
 app.get("/", (req, res) => res.send("API çalışıyor!"));
