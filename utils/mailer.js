@@ -136,3 +136,42 @@ export const notifyReviewerReply = ({ to, businessName, businessId, reply }) =>
       ctaUrl: clientUrl(`/isletme/${businessId}#reviews`),
     }),
   );
+
+// Yöneticiye: yeni işletme başvurusu geldi
+export const notifyAdminNewApplication = ({ to, businessName, city, district, ownerEmail }) =>
+  send(
+    to,
+    `Yeni işletme başvurusu: ${businessName}`.slice(0, 120),
+    layout({
+      title: "Onay bekleyen yeni bir işletme var",
+      body: `<p><strong>${esc(businessName)}</strong><br/>${esc(district)}, ${esc(city)}</p><p>Hesap: ${esc(ownerEmail || "-")}</p><p>Bilgileri kontrol edip başvuruyu onaylayabilir ya da gerekçeyle reddedebilirsiniz.</p>`,
+      ctaText: "Başvuruyu incele",
+      ctaUrl: clientUrl("/profile?tab=adminBusinesses"),
+    }),
+  );
+
+// İşletme sahibine: başvurusu onaylandı
+export const notifyOwnerApplicationApproved = ({ to, businessName, businessId }) =>
+  send(
+    to,
+    `${businessName} başvurunuz onaylandı`.slice(0, 120),
+    layout({
+      title: "İşletmeniz yayında",
+      body: `<p><strong>${esc(businessName)}</strong> başvurunuz onaylandı; profiliniz artık herkese açık.</p><p>Şimdi logo, fotoğraf, çalışma saatleri ve açıklamanızı ekleyerek profilinizi tamamlayabilirsiniz.</p>`,
+      ctaText: "Profilimi tamamla",
+      ctaUrl: clientUrl("/profile?tab=business"),
+    }),
+  );
+
+// İşletme sahibine: başvurusu reddedildi
+export const notifyOwnerApplicationRejected = ({ to, businessName, reason }) =>
+  send(
+    to,
+    `${businessName} başvurunuz onaylanmadı`.slice(0, 120),
+    layout({
+      title: "Başvurunuz onaylanmadı",
+      body: `<p><strong>${esc(businessName)}</strong> başvurusu şu gerekçeyle onaylanmadı:</p>${quote(reason)}<p>Bilgilerinizi düzeltip profilinizi kaydederek başvurunuzu yeniden gönderebilirsiniz.</p>`,
+      ctaText: "Bilgileri düzenle",
+      ctaUrl: clientUrl("/profile?tab=business"),
+    }),
+  );

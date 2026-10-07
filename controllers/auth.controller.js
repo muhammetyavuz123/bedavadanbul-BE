@@ -3,6 +3,12 @@ import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma.js";
 import nodemailer from "nodemailer";
 import crypto from "crypto";
+import { isClean } from "../utils/filter.js";
+import {
+  findUsableCategory,
+  isValidLocation,
+  notifyAdminsOfApplication,
+} from "../utils/application.js";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -15,15 +21,58 @@ const transporter = nodemailer.createTransport({
 });
 
 export const register = async (req, res) => {
-  const { username, phone, email, password, type, role, city, district } =
-    req.body;
+  const { username, phone, email, password, type, city, district } = req.body;
+  // ⚠️ Güvenlik: rol istemciden olduğu gibi alınmaz; yalnızca "business" veya
+  // "user" olabilir (kimse kayıt sırasında kendini "admin" yapamasın).
+  const role = req.body.role === "business" ? "business" : "user";
 
   try {
+    // İşyeri kaydında işletme başvurusu da aynı anda oluşturulur (onay bekler).
+    let businessCreate = null;
+    if (role === "business" && req.body.business) {
+      const b = req.body.business || {};
+      const name = String(username || "").trim();
+      const address = String(b.address || "").trim();
+      const phoneDigits = String(phone || "").replace(/\D/g, "");
+
+      if (name.length < 2 || name.length > 80) {
+        return res.status(400).json({ message: "İşletme adı 2-80 karakter olmalı." });
+      }
+      if (!isClean(name)) {
+        return res.status(400).json({ message: "Uygunsuz içerik tespit edildi." });
+      }
+      if (address.length < 5 || address.length > 200) {
+        return res.status(400).json({ message: "Adres 5-200 karakter olmalı." });
+      }
+      if (!isValidLocation(city, district)) {
+        return res.status(400).json({ message: "Geçerli bir il ve ilçe seçin." });
+      }
+      if (phoneDigits.length < 10 || phoneDigits.length > 13) {
+        return res.status(400).json({ message: "Geçerli bir telefon numarası girin." });
+      }
+      const category = await findUsableCategory(String(b.categoryId || "").trim());
+      if (!category) {
+        return res.status(400).json({ message: "Geçerli bir kategori seçin." });
+      }
+
+      businessCreate = {
+        name,
+        address,
+        city,
+        district,
+        phone: phoneDigits,
+        status: "pending",
+        isActive: false,
+        submittedAt: new Date(),
+        category: { connect: { id: category.id } },
+      };
+    }
+
     // Şifreyi hashle
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Yeni kullanıcı oluştur
-    await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         username,
         email,
@@ -33,10 +82,21 @@ export const register = async (req, res) => {
         phone,
         city,
         district,
+        ...(businessCreate ? { business: { create: businessCreate } } : {}),
       },
+      include: businessCreate
+        ? { business: { select: { id: true, name: true, city: true, district: true } } }
+        : undefined,
     });
 
-    res.status(201).json({ message: "Kullanıcı başarıyla oluşturuldu." });
+    if (created.business) {
+      notifyAdminsOfApplication(created.business, created.email);
+    }
+
+    res.status(201).json({
+      message: "Kullanıcı başarıyla oluşturuldu.",
+      pendingApproval: !!created.business,
+    });
   } catch (err) {
     // ✅ Prisma unique constraint hatası
     if (err.code === "P2002" && err.meta?.target?.includes("phone")) {

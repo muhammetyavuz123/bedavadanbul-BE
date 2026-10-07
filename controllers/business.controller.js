@@ -1,7 +1,13 @@
 import prisma from "../lib/prisma.js";
 import { isClean } from "../utils/filter.js";
 import { notifyUsers, previewText } from "../utils/notify.js";
-import { data as ilIlceData } from "../data/il-ilce.js";
+import {
+  findUsableCategory,
+  isValidLocation,
+  statusOf,
+  notifyAdminsOfApplication,
+  notifyApplicant,
+} from "../utils/application.js";
 import {
   notifyOwnerNewInquiry,
   notifyOwnerNewMessage,
@@ -41,22 +47,6 @@ const normalizeWebsite = (raw) => {
 // Görseller sadece projenin Cloudinary hesabından kabul edilir.
 const isCloudinaryUrl = (v) =>
   typeof v === "string" && /^https:\/\/res\.cloudinary\.com\//.test(v);
-
-// İşletme kategorisi = sitedeki mevcut (onaylı + aktif) kategoriler; ana ya da alt
-// kategori seçilebilir.
-const findUsableCategory = (id) =>
-  isObjectId(id)
-    ? prisma.category.findFirst({
-        where: { id, isApproved: true, isActive: true },
-        select: { id: true },
-      })
-    : null;
-
-const isValidLocation = (city, district) => {
-  const il = ilIlceData.find((i) => i.il_adi === city);
-  if (!il) return false;
-  return il.ilceler.some((i) => i.ilce_adi === district);
-};
 
 // Müşteri güveni için toplu yanıt istatistiği (kimlik/konu içermez).
 const getResponseStats = async (ownerId) => {
@@ -125,6 +115,18 @@ const publicBusinessSelect = {
   featuredUntil: true,
   createdAt: true,
 };
+
+// İşletme sahibinin / yöneticinin gördüğü alanlar (başvuru durumu dahil).
+// Herkese açık yanıtlarda `rejectReason` ASLA dönmez.
+const ownerBusinessSelect = {
+  ...publicBusinessSelect,
+  isActive: true,
+  status: true,
+  rejectReason: true,
+  submittedAt: true,
+  decidedAt: true,
+};
+const withStatus = (b) => (b ? { ...b, status: statusOf(b) } : b);
 
 // Süresi geçen "öne çıkan" işletmeleri düşür (en fazla dakikada bir çalışır).
 let lastFeaturedSweep = 0;
@@ -261,9 +263,9 @@ export const getMyBusiness = async (req, res) => {
   try {
     const business = await prisma.business.findUnique({
       where: { ownerId: req.user.id },
-      select: publicBusinessSelect,
+      select: ownerBusinessSelect,
     });
-    res.json(business || null);
+    res.json(withStatus(business) || null);
   } catch (err) {
     console.error("getMyBusiness hatası:", err);
     res.status(500).json({ message: "İşletme profili alınamadı" });
@@ -341,16 +343,49 @@ export const saveMyBusiness = async (req, res) => {
       return res.status(400).json({ message: "Geçerli bir kategori seçin." });
     }
 
-    const business = await prisma.business.upsert({
+    // Başvuru akışı: ilk kayıt "onay bekliyor" olarak açılır ve yönetici onaylayana
+    // kadar herkese açık listelerde görünmez (isActive=false). Reddedilmiş bir
+    // başvuru düzenlenip kaydedilirse yeniden onaya düşer. Yönetici hesabının
+    // kendi işletmesi doğrudan onaylı açılır.
+    const isAdminUser = req.user.role === "admin";
+    const existing = await prisma.business.findUnique({
       where: { ownerId: req.user.id },
-      create: {
-        ...data,
-        category: { connect: { id: category.id } },
-        owner: { connect: { id: req.user.id } },
-      },
-      update: { ...data, category: { connect: { id: category.id } } },
-      select: publicBusinessSelect,
+      select: { id: true, status: true },
     });
+
+    let business;
+    let applicationEvent = null; // "new" | "resubmit"
+    if (!existing) {
+      business = await prisma.business.create({
+        data: {
+          ...data,
+          category: { connect: { id: category.id } },
+          owner: { connect: { id: req.user.id } },
+          ...(isAdminUser
+            ? { status: "approved", decidedAt: new Date() }
+            : { status: "pending", isActive: false, submittedAt: new Date() }),
+        },
+        select: ownerBusinessSelect,
+      });
+      if (!isAdminUser) applicationEvent = "new";
+    } else {
+      const resubmit = !isAdminUser && statusOf(existing) === "rejected";
+      business = await prisma.business.update({
+        where: { ownerId: req.user.id },
+        data: {
+          ...data,
+          category: { connect: { id: category.id } },
+          ...(resubmit
+            ? { status: "pending", isActive: false, rejectReason: null, submittedAt: new Date() }
+            : {}),
+        },
+        select: ownerBusinessSelect,
+      });
+      if (resubmit) applicationEvent = "resubmit";
+    }
+    if (applicationEvent) {
+      notifyAdminsOfApplication(business, req.user.email, applicationEvent === "resubmit");
+    }
 
     // Bu hesabın daha önce eklediği (henüz bağlanmamış) kampanyaları profile bağla
     await prisma.post
@@ -361,7 +396,7 @@ export const saveMyBusiness = async (req, res) => {
       .catch((err) => console.error("Kampanya bağlama hatası:", err));
     placesCache = { at: 0, data: null };
 
-    res.json(business);
+    res.json(withStatus(business));
   } catch (err) {
     console.error("saveMyBusiness hatası:", err);
     res.status(500).json({ message: "İşletme profili kaydedilemedi" });
@@ -1123,11 +1158,14 @@ export const adminListBusinesses = async (req, res) => {
     if (filter === "unverified") where.isVerified = { not: true };
     if (filter === "featured") where.isFeatured = true;
     if (filter === "inactive") where.isActive = false;
+    if (filter === "pending") where.status = "pending";
+    if (filter === "rejected") where.status = "rejected";
 
-    const [items, total] = await Promise.all([
+    const [items, total, pending] = await Promise.all([
       prisma.business.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        // Onay bekleyenlerde en eski başvuru en üstte (sıraya göre karşılanır)
+        orderBy: filter === "pending" ? { submittedAt: "asc" } : { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
         select: {
@@ -1135,7 +1173,16 @@ export const adminListBusinesses = async (req, res) => {
           name: true,
           city: true,
           district: true,
+          address: true,
           phone: true,
+          description: true,
+          workingHours: true,
+          website: true,
+          photos: true,
+          status: true,
+          rejectReason: true,
+          submittedAt: true,
+          decidedAt: true,
           logo: true,
           isActive: true,
           isVerified: true,
@@ -1149,8 +1196,20 @@ export const adminListBusinesses = async (req, res) => {
         },
       }),
       prisma.business.count({ where }),
+      prisma.business.count({ where: { status: "pending" } }),
     ]);
-    res.json({ data: items, total, page, limit });
+    res.json({
+      data: items.map((b) => ({
+        ...b,
+        status: statusOf(b),
+        description: b.description ? b.description.slice(0, 300) : null,
+        photos: (b.photos || []).slice(0, 4),
+      })),
+      total,
+      pending,
+      page,
+      limit,
+    });
   } catch (err) {
     console.error("adminListBusinesses hatası:", err);
     res.status(500).json({ message: "İşletmeler alınamadı" });
@@ -1180,11 +1239,43 @@ export const adminUpdateBusiness = async (req, res) => {
   }
 
   try {
+    const current = await prisma.business.findUnique({
+      where: { id },
+      select: { id: true, ownerId: true, name: true, status: true },
+    });
+    if (!current) return res.status(404).json({ message: "İşletme bulunamadı" });
+
+    // Rozet ve öne çıkarma yalnızca onaylı işletmelere verilir.
+    let approvedNow = false;
+    if (statusOf(current) !== "approved") {
+      if (data.isVerified === true || data.isFeatured === true) {
+        return res
+          .status(400)
+          .json({ message: "Önce işletme başvurusunu onaylayın." });
+      }
+      if (data.isActive === true) {
+        // Onay bekleyen/reddedilen işletmeyi "yayına al" = başvuruyu onayla
+        data.status = "approved";
+        data.rejectReason = null;
+        data.decidedAt = new Date();
+        approvedNow = true;
+      } else {
+        // Henüz onaylanmamış işletme zaten yayında değil
+        delete data.isActive;
+      }
+      if (Object.keys(data).length === 0) {
+        return res.status(400).json({ message: "Güncellenecek alan yok." });
+      }
+    }
+
     const updated = await prisma.business.update({
       where: { id },
       data,
       select: {
         id: true,
+        ownerId: true,
+        name: true,
+        status: true,
         isActive: true,
         isVerified: true,
         isFeatured: true,
@@ -1192,10 +1283,77 @@ export const adminUpdateBusiness = async (req, res) => {
       },
     });
     placesCache = { at: 0, data: null };
-    res.json(updated);
+    if (approvedNow) notifyApplicant(updated, "approved");
+    const { ownerId: _o, name: _n, ...rest } = updated;
+    res.json({ ...rest, status: statusOf(updated) });
   } catch (err) {
     if (err?.code === "P2025") return res.status(404).json({ message: "İşletme bulunamadı" });
     console.error("adminUpdateBusiness hatası:", err);
     res.status(500).json({ message: "İşletme güncellenemedi" });
+  }
+};
+
+// Başvuruyu onayla: işletme herkese açık olur, sahibine bildirim gider.
+export const adminApproveBusiness = async (req, res) => {
+  const { id } = req.params;
+  if (!isObjectId(id)) return res.status(404).json({ message: "İşletme bulunamadı" });
+
+  try {
+    const current = await prisma.business.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    if (!current) return res.status(404).json({ message: "İşletme bulunamadı" });
+    if (statusOf(current) === "approved") {
+      return res.status(400).json({ message: "Bu işletme zaten onaylı." });
+    }
+
+    const updated = await prisma.business.update({
+      where: { id },
+      data: { status: "approved", isActive: true, rejectReason: null, decidedAt: new Date() },
+      select: { id: true, ownerId: true, name: true, status: true, isActive: true, decidedAt: true },
+    });
+    placesCache = { at: 0, data: null };
+    notifyApplicant(updated, "approved");
+    res.json({ id: updated.id, status: updated.status, isActive: updated.isActive });
+  } catch (err) {
+    console.error("adminApproveBusiness hatası:", err);
+    res.status(500).json({ message: "Başvuru onaylanamadı" });
+  }
+};
+
+// Başvuruyu reddet (gerekçe zorunlu): işletme gizli kalır, sahibi düzeltip yeniden gönderebilir.
+export const adminRejectBusiness = async (req, res) => {
+  const { id } = req.params;
+  if (!isObjectId(id)) return res.status(404).json({ message: "İşletme bulunamadı" });
+
+  const reason = text((req.body || {}).reason);
+  if (reason.length < 3 || reason.length > 300) {
+    return res.status(400).json({ message: "Gerekçe 3-300 karakter olmalı." });
+  }
+
+  try {
+    const current = await prisma.business.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    if (!current) return res.status(404).json({ message: "İşletme bulunamadı" });
+    if (statusOf(current) === "approved") {
+      return res.status(400).json({
+        message: "Onaylı işletme reddedilemez; gerekirse yayından kaldırın.",
+      });
+    }
+
+    const updated = await prisma.business.update({
+      where: { id },
+      data: { status: "rejected", isActive: false, rejectReason: reason, decidedAt: new Date() },
+      select: { id: true, ownerId: true, name: true, status: true, isActive: true },
+    });
+    placesCache = { at: 0, data: null };
+    notifyApplicant(updated, "rejected", reason);
+    res.json({ id: updated.id, status: updated.status, isActive: updated.isActive, rejectReason: reason });
+  } catch (err) {
+    console.error("adminRejectBusiness hatası:", err);
+    res.status(500).json({ message: "Başvuru reddedilemedi" });
   }
 };

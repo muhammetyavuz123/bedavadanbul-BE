@@ -36,6 +36,8 @@ import {
   getPlaces,
   adminListBusinesses,
   adminUpdateBusiness,
+  adminApproveBusiness,
+  adminRejectBusiness,
 } from "../controllers/business.controller.js";
 
 const router = express.Router();
@@ -48,6 +50,9 @@ router.get("/places", getPlaces);
 // Yönetici: rozet / öne çıkarma / yayından kaldırma
 router.get("/admin/all", protect, isAdmin, adminListBusinesses);
 router.patch("/admin/:id", protect, isAdmin, adminUpdateBusiness);
+// Yönetici: işletme başvurusunu onayla / gerekçeyle reddet
+router.post("/admin/:id/approve", protect, isAdmin, adminApproveBusiness);
+router.post("/admin/:id/reject", protect, isAdmin, adminRejectBusiness);
 
 // Favori işletmelerim
 router.get("/favorites/mine", protect, listMyFavorites);

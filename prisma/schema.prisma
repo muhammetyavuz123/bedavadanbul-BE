@@ -189,7 +189,15 @@ model Business {
   workingHours String?
   logo         String?
   photos       String[]
+  // Herkese açık mı? Başvurusu onaylanmamış (bekleyen/reddedilen) işletmeler
+  // false olur; böylece tüm herkese açık sorgular onları kendiliğinden gizler.
   isActive     Boolean  @default(true)
+  // Başvuru durumu: "pending" | "approved" | "rejected".
+  // ⚠️ Bilerek `String?`: mevcut kayıtlarda alan yok; boş (null) = onaylı sayılır.
+  status       String?  @default("approved")
+  rejectReason String?
+  submittedAt  DateTime?
+  decidedAt    DateTime?
   // Her yorum eklenip silindiğinde yeniden hesaplanır (listeleme/sıralama hızlı olsun diye)
   ratingAvg    Float    @default(0)
   ratingCount  Int      @default(0)
@@ -211,6 +219,7 @@ model Business {
 
   @@index([city, district])
   @@index([categoryId])
+  @@index([status])
 }
 
 // Herkese açık yorum/puan. Kullanıcı başına işletme başına tek yorum.
