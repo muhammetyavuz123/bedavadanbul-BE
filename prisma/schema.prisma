@@ -58,6 +58,8 @@ model Post {
   businessId    String?   @db.ObjectId
 
   @@index([businessId])
+
+  redemptions CampaignRedemption[]
 }
 
 enum Type {
@@ -130,6 +132,14 @@ model User {
   favoriteBusinesses BusinessFavorite[]
   pushTokens         PushToken[]
   notifications      UserNotification[]
+
+  // Şikâyet / engelleme (kullanıcı içeriği güvenliği)
+  reportsMade        Report[]    @relation("ReportAuthor")
+  blocksMade         UserBlock[] @relation("BlockAuthor")
+  blocksReceived     UserBlock[] @relation("BlockTarget")
+
+  // "Kampanyayı kullandım" kayıtları
+  redemptions        CampaignRedemption[]
 }
 
 model Chat {
@@ -348,4 +358,62 @@ model BusinessDailyStat {
   directions Int      @default(0)
 
   @@unique([businessId, date])
+}
+
+// ==================== ŞİKÂYET / ENGELLEME ====================
+
+// Kullanıcıların yorum, kampanya yorumu, işletme ya da kullanıcı hakkında
+// yaptığı şikâyetler. Aynı kullanıcı aynı içeriği yalnızca bir kez bildirebilir.
+model Report {
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  reporter       User      @relation("ReportAuthor", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId     String    @db.ObjectId
+  // "review" | "comment" | "business" | "user"
+  targetType     String
+  targetId       String    @db.ObjectId
+  // İçeriğin sahibi (şikâyet anında kaydedilir; içerik silinse de bilinir)
+  reportedUserId String?   @db.ObjectId
+  // "spam" | "abuse" | "hate" | "fake" | "inappropriate" | "other"
+  reason         String
+  details        String?
+  // "open" | "resolved" | "dismissed"
+  status         String    @default("open")
+  adminNote      String?
+  decidedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+// "Bu kullanıcıyı engelle": engelleyen kişi, engellediğinin yorumlarını görmez.
+model UserBlock {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  blocker   User     @relation("BlockAuthor", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockerId String   @db.ObjectId
+  blocked   User     @relation("BlockTarget", fields: [blockedId], references: [id], onDelete: Cascade)
+  blockedId String   @db.ObjectId
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+}
+
+// ==================== KAMPANYA KULLANIMI ====================
+
+// "Kampanyayı kullandım": kullanıcı beyanı. Kampanya başına kullanıcı başına tek kayıt.
+// businessId kampanyanın bağlı olduğu işletmedir (istatistik ve yorum rozeti için).
+model CampaignRedemption {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId     String   @db.ObjectId
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @db.ObjectId
+  businessId String?  @db.ObjectId
+  createdAt  DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([businessId, createdAt])
+  @@index([postId])
 }

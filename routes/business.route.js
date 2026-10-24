@@ -1,6 +1,7 @@
 import express from "express";
 import { protect } from "../middleware/protect.js";
 import { isAdmin } from "../middleware/isAdmin.js";
+import { optionalAuth } from "../middleware/optionalAuth.js";
 import {
   inquiryLimiter,
   inquiryMessageLimiter,
@@ -76,7 +77,8 @@ router.patch("/inquiries/:inquiryId/close", protect, closeInquiry);
 
 // Herkese açık işletme sayfası + yorumlar
 router.get("/:id", getBusiness);
-router.get("/:id/reviews", listReviews);
+// optionalAuth: engellenen kullanıcıların yorumları engelleyene gösterilmez
+router.get("/:id/reviews", optionalAuth, listReviews);
 router.get("/:id/reviews/mine", protect, getMyReview);
 router.post("/:id/reviews", protect, reviewLimiter, upsertReview);
 router.delete("/:id/reviews/:reviewId", protect, deleteReview);

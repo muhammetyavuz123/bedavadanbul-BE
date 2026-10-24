@@ -1,6 +1,13 @@
 import express from "express";
 import { protect } from "../middleware/protect.js";
 import { isAdmin } from "../middleware/isAdmin.js";
+import { optionalAuth } from "../middleware/optionalAuth.js";
+import { redeemLimiter } from "../middleware/rateLimit.js";
+import {
+  getRedemption,
+  redeemPost,
+  unredeemPost,
+} from "../controllers/redemption.controller.js";
 import {
   addPost,
   deletePost,
@@ -29,6 +36,10 @@ router.get("/me", protect, async (req, res) => {
 
 // Diğer işlemler (add, update, delete, approve) login gerekli
 router.get("/:id", getPost);
+// "Kampanyayı kullandım": sayaç herkese açık, işaretleme giriş ister
+router.get("/:id/redemption", optionalAuth, getRedemption);
+router.post("/:id/redeem", protect, redeemLimiter, redeemPost);
+router.delete("/:id/redeem", protect, unredeemPost);
 router.post("/", protect, addPost);
 router.put("/:id", protect, updatePost);
 router.delete("/:id", protect, deletePost);

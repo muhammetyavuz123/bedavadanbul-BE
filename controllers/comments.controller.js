@@ -1,8 +1,14 @@
 import prisma from "../lib/prisma.js";
+import { isClean } from "../utils/filter.js";
+import { blockedIdsFor } from "../utils/blocks.js";
+
+const OID = /^[a-f\d]{24}$/i;
+const MAX_COMMENT = 500;
 
 // Yorum oluştur
 export const postComment = async (req, res) => {
-  const { content, postId } = req.body;
+  const postId = req.body?.postId;
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
   // ⚠️ userId ASLA client'tan alınmamalı; her zaman `protect` middleware'inin
   // doğruladığı oturumdan (req.user) geliyor olmalı. Aksi halde bir kullanıcı
   // başka biri adına yorum yazabilir.
@@ -10,6 +16,15 @@ export const postComment = async (req, res) => {
 
   if (!content || !postId) {
     return res.status(400).json({ message: "Eksik bilgi" });
+  }
+  if (typeof postId !== "string" || !OID.test(postId)) {
+    return res.status(400).json({ message: "Geçersiz kampanya" });
+  }
+  if (content.length > MAX_COMMENT) {
+    return res.status(400).json({ message: `Yorum en fazla ${MAX_COMMENT} karakter olabilir.` });
+  }
+  if (!isClean(content)) {
+    return res.status(400).json({ message: "Uygunsuz içerik tespit edildi." });
   }
 
   try {
@@ -30,10 +45,16 @@ export const postComment = async (req, res) => {
 // Post'a ait yorumları getir
 export const getComment = async (req, res) => {
   const { id: postId } = req.params;
+  if (!OID.test(postId)) return res.json([]);
 
   try {
+    // Giriş yapmış kullanıcının engellediği kişilerin yorumları gösterilmez
+    const blocked = await blockedIdsFor(req.user?.id);
     const comments = await prisma.comment.findMany({
-      where: { postId },
+      where: {
+        postId,
+        ...(blocked.length ? { userId: { notIn: blocked } } : {}),
+      },
       include: {
         user: {
           select: { id: true, username: true, avatar: true },
@@ -41,7 +62,16 @@ export const getComment = async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
-    res.json(comments);
+
+    // Bu kampanyayı kullandığını belirtmiş yorumcular için rozet
+    const redeemed = comments.length
+      ? await prisma.campaignRedemption.findMany({
+          where: { postId, userId: { in: comments.map((c) => c.userId) } },
+          select: { userId: true },
+        })
+      : [];
+    const usedSet = new Set(redeemed.map((r) => r.userId));
+    res.json(comments.map((c) => ({ ...c, usedCampaign: usedSet.has(c.userId) })));
   } catch (err) {
     console.error("Yorumlar getirilemedi:", err);
     res.status(500).json({ message: "Yorumlar getirilemedi" });
@@ -64,7 +94,8 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ message: "Yorum bulunamadı." });
     }
 
-    if (comment.userId !== userId) {
+    // Yazan kişi ya da yönetici silebilir
+    if (comment.userId !== userId && req.user.role !== "admin") {
       return res.status(403).json({ message: "Bu yorumu silme yetkiniz yok." });
     }
 

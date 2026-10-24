@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { isClean } from "../utils/filter.js";
 import { notifyUsers, previewText } from "../utils/notify.js";
+import { blockedIdsFor } from "../utils/blocks.js";
 import {
   findUsableCategory,
   isValidLocation,
@@ -412,18 +413,36 @@ export const listReviews = async (req, res) => {
     const page = toPage(req.query.page);
     const limit = toLimit(req.query.limit, 10);
 
+    // Giriş yapmış kullanıcının engellediği kişilerin yorumları listelenmez
+    const blocked = await blockedIdsFor(req.user?.id);
+    const where = {
+      businessId: id,
+      ...(blocked.length ? { userId: { notIn: blocked } } : {}),
+    };
+
     const [items, total] = await Promise.all([
       prisma.businessReview.findMany({
-        where: { businessId: id },
+        where,
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * limit,
         take: limit,
         include: { user: { select: { id: true, username: true, avatar: true } } },
       }),
-      prisma.businessReview.count({ where: { businessId: id } }),
+      prisma.businessReview.count({ where }),
     ]);
 
-    res.json({ data: items, total, page, limit });
+    // Bu işletmenin bir kampanyasını kullandığını belirtmiş yorumcular için rozet
+    const reviewerIds = items.map((i) => i.userId);
+    const redeemed = reviewerIds.length
+      ? await prisma.campaignRedemption.findMany({
+          where: { businessId: id, userId: { in: reviewerIds } },
+          select: { userId: true },
+        })
+      : [];
+    const usedSet = new Set(redeemed.map((r) => r.userId));
+    const data = items.map((i) => ({ ...i, usedCampaign: usedSet.has(i.userId) }));
+
+    res.json({ data, total, page, limit });
   } catch (err) {
     console.error("listReviews hatası:", err);
     res.status(500).json({ message: "Yorumlar alınamadı" });
@@ -1065,8 +1084,17 @@ export const getMyStats = async (req, res) => {
     if (!business) return res.json(null);
 
     const dates = Array.from({ length: days }, (_, i) => trDay(days - 1 - i));
-    const [rows, favoriteCount, inquiryTotal, openInquiries, activePosts, recentReviews] =
-      await Promise.all([
+    const since = new Date(Date.now() - days * 86400 * 1000);
+    const [
+      rows,
+      favoriteCount,
+      inquiryTotal,
+      openInquiries,
+      activePosts,
+      recentReviews,
+      redemptions,
+      redemptionTotal,
+    ] = await Promise.all([
         prisma.businessDailyStat.findMany({
           where: { businessId: business.id, date: { gte: dates[0] } },
         }),
@@ -1077,10 +1105,15 @@ export const getMyStats = async (req, res) => {
         prisma.businessReview.count({
           where: {
             businessId: business.id,
-            createdAt: { gte: new Date(Date.now() - days * 86400 * 1000) },
+            createdAt: { gte: since },
           },
         }),
-      ]);
+        // "Kampanyayı kullandım" sayıları (dönem içi ve toplam; kullanıcı beyanı)
+        prisma.campaignRedemption.count({
+          where: { businessId: business.id, createdAt: { gte: since } },
+        }),
+        prisma.campaignRedemption.count({ where: { businessId: business.id } }),
+    ]);
 
     const byDate = new Map(rows.map((r) => [r.date, r]));
     const series = dates.map((date) => {
@@ -1103,6 +1136,8 @@ export const getMyStats = async (req, res) => {
       openInquiries,
       activePosts,
       recentReviews,
+      redemptions,
+      redemptionTotal,
       ratingAvg: business.ratingAvg,
       ratingCount: business.ratingCount,
     });

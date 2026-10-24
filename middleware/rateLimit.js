@@ -120,3 +120,30 @@ export const trackLimiter = rateLimit({
   legacyHeaders: false,
   handler: (req, res) => res.status(204).end(),
 });
+
+// Şikâyet gönderme (kullanıcı başına)
+export const reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: { message: "Çok fazla şikâyet gönderdiniz. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// Kullanıcı engelleme / engel kaldırma
+export const blockLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: { message: "Çok fazla engelleme işlemi yaptınız. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// "Kampanyayı kullandım" işaretleme (kullanıcı başına)
+export const redeemLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 40,
+  message: { message: "Günlük işaretleme limitine ulaştınız." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
