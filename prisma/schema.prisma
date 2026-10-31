@@ -417,3 +417,20 @@ model CampaignRedemption {
   @@index([businessId, createdAt])
   @@index([postId])
 }
+
+// ==================== ASİSTAN: BULUNAMAYAN ARAMALAR ====================
+
+// Asistanın bir yerde/türde sonuç bulamadığı aramalar. Yöneticiye "hangi
+// ilçede hangi tür işletme eksik?" bilgisini verir. Kullanıcı kimliği
+// SAKLANMAZ; metin en fazla 120 karakterdir.
+model AssistantMiss {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  city      String?
+  district  String?
+  label     String   @default("")
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([city, district, label])
+}

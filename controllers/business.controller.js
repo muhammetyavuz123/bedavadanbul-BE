@@ -171,6 +171,11 @@ export const listBusinesses = async (req, res) => {
     const sort = text(req.query.sort);
     const exclude = text(req.query.exclude);
     const featuredOnly = req.query.featured === "1" || req.query.featured === "true";
+    // Asistan gibi istemciler için: çalışma saatlerini ve açıklamanın daha uzun halini de döndürür.
+    const detail = req.query.detail === "1" || req.query.detail === "true";
+    // deep=1: arama kelimesi işletme adının yanında açıklamasında ve kategori adında da aranır
+    // (asistanın "matkap nerede bulabilirim" gibi ürün aramaları için).
+    const deep = req.query.deep === "1" || req.query.deep === "true";
 
     await sweepExpiredFeatured();
 
@@ -191,7 +196,17 @@ export const listBusinesses = async (req, res) => {
         : [];
       where.categoryId = { in: ids };
     }
-    if (search) where.name = { contains: search, mode: "insensitive" };
+    if (search) {
+      if (deep) {
+        where.OR = [
+          { name: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+          { category: { name: { contains: search, mode: "insensitive" } } },
+        ];
+      } else {
+        where.name = { contains: search, mode: "insensitive" };
+      }
+    }
     if (!Number.isNaN(minRating) && minRating > 0) {
       where.ratingAvg = { gte: minRating };
     }
@@ -223,14 +238,16 @@ export const listBusinesses = async (req, res) => {
           ratingCount: true,
           isVerified: true,
           isFeatured: true,
+          ...(detail ? { workingHours: true } : {}),
         },
       }),
       prisma.business.count({ where }),
     ]);
 
+    const descLimit = detail ? 1000 : 140;
     const data = items.map((b) => ({
       ...b,
-      description: b.description ? b.description.slice(0, 140) : null,
+      description: b.description ? b.description.slice(0, descLimit) : null,
     }));
 
     res.json({ data, total, page, limit });

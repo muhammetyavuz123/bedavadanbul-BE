@@ -147,3 +147,13 @@ export const redeemLimiter = rateLimit({
   skipFailedRequests: true,
   keyGenerator: (req) => String(req.user.id),
 });
+
+// Asistan: bulunamayan arama kaydı (giriş gerektirmez, IP başına)
+export const assistantMissLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 30,
+  standardHeaders: false,
+  legacyHeaders: false,
+  // Sınıra gelince istemciyi hataya düşürmeden sessizce yoksay
+  handler: (req, res) => res.status(204).end(),
+});
