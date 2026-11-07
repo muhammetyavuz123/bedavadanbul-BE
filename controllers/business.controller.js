@@ -244,7 +244,7 @@ export const listBusinesses = async (req, res) => {
       prisma.business.count({ where }),
     ]);
 
-    const descLimit = detail ? 1000 : 140;
+    const descLimit = detail ? 3000 : 140;
     const data = items.map((b) => ({
       ...b,
       description: b.description ? b.description.slice(0, descLimit) : null,
@@ -310,8 +310,8 @@ export const saveMyBusiness = async (req, res) => {
   if (name.length < 2 || name.length > 80) {
     return res.status(400).json({ message: "İşletme adı 2-80 karakter olmalı." });
   }
-  if (description.length > 1000) {
-    return res.status(400).json({ message: "Açıklama en fazla 1000 karakter olabilir." });
+  if (description.length > 3000) {
+    return res.status(400).json({ message: "Açıklama en fazla 3000 karakter olabilir." });
   }
   if (address.length < 5 || address.length > 200) {
     return res.status(400).json({ message: "Adres 5-200 karakter olmalı." });
