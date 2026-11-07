@@ -117,8 +117,34 @@ export const register = async (req, res) => {
   }
 };
 
+// E-posta ile kullanıcı bul: büyük/küçük harfe ve baştaki/sondaki boşluğa bakmaz.
+// (Mobil klavyeler ilk harfi büyük yazabiliyor: "Ad@gmail.com" ile "ad@gmail.com"
+// aynı adres sayılmalı.) Eski kayıtlar yazıldığı gibi saklandığı için sırayla denenir.
+const findUserByEmail = async (rawEmail) => {
+  const email = String(rawEmail ?? "").trim();
+  if (!email) return null;
+
+  // 1) Birebir aynı (unique index ile hızlı)
+  let user = await prisma.user.findUnique({ where: { email } });
+  if (user) return user;
+
+  // 2) Küçük harfli hali
+  const lower = email.toLowerCase();
+  if (lower !== email) {
+    user = await prisma.user.findUnique({ where: { email: lower } });
+    if (user) return user;
+  }
+
+  // 3) Eski kayıt büyük harfle saklanmış olabilir
+  return prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+  });
+};
+
 export const login = async (req, res) => {
   let { identifier, password } = req.body;
+  // Baştaki/sondaki boşluğu temizle (klavye otomatik boşluk ekleyebiliyor)
+  identifier = String(identifier ?? "").trim();
   const cleanedIdentifier = identifier.replace(/[^0-9]/g, "");
 
   try {
@@ -130,9 +156,7 @@ export const login = async (req, res) => {
     let user;
 
     if (isEmail) {
-      user = await prisma.user.findUnique({
-        where: { email: identifier },
-      });
+      user = await findUserByEmail(identifier);
     } else if (isPhone) {
       const users = await prisma.user.findMany({
         where: {
@@ -209,7 +233,7 @@ export const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await findUserByEmail(email);
 
     // Kullanıcı yoksa bile aynı cevabı ver
     if (!user) {
