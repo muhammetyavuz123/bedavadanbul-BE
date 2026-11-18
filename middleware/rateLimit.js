@@ -157,3 +157,40 @@ export const assistantMissLimiter = rateLimit({
   // Sınıra gelince istemciyi hataya düşürmeden sessizce yoksay
   handler: (req, res) => res.status(204).end(),
 });
+
+// ===== Sadakat (QR ile adet / puan) =====
+// Müşteri QR'ı yenileme (kullanıcı başına)
+export const loyaltyQrLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 120,
+  message: { message: "Çok fazla QR isteği. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// İşletmenin QR okutma / kupon işlemleri (işletme hesabı başına)
+export const loyaltyScanLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 600,
+  message: { message: "Çok fazla okutma işlemi. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// Müşterinin puanla ödül alması
+export const loyaltyClaimLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  message: { message: "Çok fazla ödül işlemi. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
+
+// İşletmenin program ayarlarını kaydetmesi
+export const loyaltyProgramLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: { message: "Çok fazla kayıt işlemi. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});

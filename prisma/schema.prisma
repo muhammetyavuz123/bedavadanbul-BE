@@ -140,6 +140,9 @@ model User {
 
   // "Kampanyayı kullandım" kayıtları
   redemptions        CampaignRedemption[]
+
+  // Sadakat kartları (QR ile adet / puan biriktirme)
+  loyaltyCards       LoyaltyCard[]
 }
 
 model Chat {
@@ -226,6 +229,7 @@ model Business {
   posts      Post[]
   favorites  BusinessFavorite[]
   dailyStats BusinessDailyStat[]
+  loyaltyProgram LoyaltyProgram?
 
   @@index([city, district])
   @@index([categoryId])
@@ -433,4 +437,103 @@ model AssistantMiss {
 
   @@index([createdAt])
   @@index([city, district, label])
+}
+
+// ==================== SADAKAT (QR İLE ADET / PUAN) ====================
+
+// İşletme başına en fazla 1 program. type:
+//  "stamp"  -> "goal" adet alışverişe "rewardText" hediye (örn. 5 kahveye 1 kahve)
+//  "points" -> "earnAmount" TL = "earnPoints" puan; puanlar LoyaltyReward listesinden harcanır
+model LoyaltyProgram {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId     String   @unique @db.ObjectId
+  type           String
+  isActive       Boolean  @default(true)
+  // stamp
+  goal           Int      @default(5)
+  rewardText     String   @default("")
+  // points
+  earnAmount     Int      @default(100)
+  earnPoints     Int      @default(10)
+  // Aynı müşteriye arka arkaya puan eklemeyi engelleyen bekleme süresi (dakika)
+  minIntervalMin Int      @default(10)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  rewards LoyaltyReward[]
+  cards   LoyaltyCard[]
+}
+
+// Puan programındaki ödül listesi ("100 puan = 1 kahve")
+model LoyaltyReward {
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  program   LoyaltyProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programId String         @db.ObjectId
+  name      String
+  cost      Int
+  createdAt DateTime       @default(now())
+
+  @@index([programId])
+}
+
+// Müşterinin bir işletmedeki kartı. progress: stamp için mevcut adet, points için puan bakiyesi.
+model LoyaltyCard {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  program     LoyaltyProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  programId   String         @db.ObjectId
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String         @db.ObjectId
+  progress    Int            @default(0)
+  totalEarned Int            @default(0)
+  // Boş (null) yerine epoch kullanılır: Mongo'da null/eksik alan sorgusu karışmasın
+  lastEarnAt  DateTime
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  coupons LoyaltyCoupon[]
+
+  @@unique([programId, userId])
+  @@index([userId, updatedAt])
+}
+
+// Hediye kuponu. code, QR ile okutulur; bir kez kullanılabilir.
+model LoyaltyCoupon {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  card       LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  cardId     String      @db.ObjectId
+  programId  String      @db.ObjectId
+  businessId String      @db.ObjectId
+  userId     String      @db.ObjectId
+  rewardName String
+  // Puan programında harcanan puan (stamp için 0)
+  cost       Int         @default(0)
+  code       String      @unique
+  // "active" | "used"
+  status     String      @default("active")
+  usedAt     DateTime?
+  createdAt  DateTime    @default(now())
+
+  @@index([userId, status])
+  @@index([businessId, createdAt])
+}
+
+// İşlem kaydı (itiraz / hata durumunda kanıt). Bilerek ilişkisiz: içerik silinse de kayıt kalır.
+model LoyaltyEvent {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  programId  String   @db.ObjectId
+  businessId String   @db.ObjectId
+  userId     String   @db.ObjectId
+  cashierId  String   @db.ObjectId
+  // "earn" | "claim" | "redeem"
+  kind       String
+  // earn: adet (stamp) ya da TL (points). claim/redeem: 0
+  amount     Int      @default(0)
+  // earn: eklenen adet/puan. claim: harcanan puan
+  delta      Int      @default(0)
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
+  @@index([userId, createdAt])
 }

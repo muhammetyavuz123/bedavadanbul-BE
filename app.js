@@ -17,6 +17,7 @@ import businessRoute from "./routes/business.route.js";
 import notificationRoute from "./routes/notification.route.js";
 import reportRoute from "./routes/report.route.js";
 import assistantRoute from "./routes/assistant.route.js";
+import loyaltyRoute from "./routes/loyalty.route.js";
 import { sitemap } from "./controllers/seo.controller.js";
 
 import { globalLimiter } from "./middleware/rateLimit.js";
@@ -104,6 +105,7 @@ app.use("/api/businesses", businessRoute);
 app.use("/api/notifications", notificationRoute);
 app.use("/api/reports", reportRoute);
 app.use("/api/assistant", assistantRoute);
+app.use("/api/loyalty", loyaltyRoute);
 app.get("/api/sitemap.xml", sitemap);
 
 app.get("/", (req, res) => res.send("API çalışıyor!"));
