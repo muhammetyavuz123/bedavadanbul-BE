@@ -655,3 +655,107 @@ export const getBusinessProgram = async (req, res) => {
     res.status(500).json({ message: "Program alınamadı" });
   }
 };
+
+// =====================================================================
+// KAMPANYALAR LİSTESİNDE GÖRÜNÜM + "KATIL"
+// =====================================================================
+
+const cleanStr = (v) => (typeof v === "string" && v.trim() ? v.trim() : "");
+
+// GET /api/loyalty/programs?city=&district=&search=&page=&limit=
+// Herkese açık: yayındaki işletmelerin açık sadakat programları.
+// Giriş varsa her program için `joined` bilgisi de döner.
+export const listPrograms = async (req, res) => {
+  try {
+    const city = cleanStr(req.query.city);
+    const district = cleanStr(req.query.district);
+    const search = cleanStr(req.query.search).slice(0, 80);
+    const page = intIn(req.query.page, 1, 1000) || 1;
+    const limit = intIn(req.query.limit, 1, 30) || 12;
+
+    const business = { isActive: true };
+    if (city) business.city = city;
+    if (district) business.district = district;
+    if (search) business.name = { contains: search, mode: "insensitive" };
+
+    const rows = await prisma.loyaltyProgram.findMany({
+      where: { isActive: true, business },
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * limit,
+      take: limit + 1,
+      include: {
+        rewards: true,
+        business: {
+          select: {
+            id: true,
+            name: true,
+            logo: true,
+            city: true,
+            district: true,
+            ratingAvg: true,
+            ratingCount: true,
+            category: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    const hasMore = rows.length > limit;
+    const items = rows.slice(0, limit).filter((p) => p.business);
+
+    let joinedIds = new Set();
+    if (req.user && items.length) {
+      const cards = await prisma.loyaltyCard.findMany({
+        where: { userId: req.user.id, programId: { in: items.map((p) => p.id) } },
+        select: { programId: true },
+      });
+      joinedIds = new Set(cards.map((c) => c.programId));
+    }
+
+    res.json({
+      programs: items.map((p) => ({
+        ...programDTO(p),
+        business: p.business,
+        joined: joinedIds.has(p.id),
+      })),
+      hasMore,
+    });
+  } catch (err) {
+    console.error("listPrograms hatası:", err);
+    res.status(500).json({ message: "Sadakat programları alınamadı" });
+  }
+};
+
+// POST /api/loyalty/programs/:programId/join
+export const joinProgram = async (req, res) => {
+  const { programId } = req.params;
+  if (!isObjectId(programId)) return res.status(404).json({ message: "Program bulunamadı." });
+
+  try {
+    const program = await prisma.loyaltyProgram.findUnique({
+      where: { id: programId },
+      include: { business: { select: { id: true, ownerId: true, isActive: true } } },
+    });
+    if (!program || !program.isActive || !program.business || program.business.isActive === false) {
+      return res.status(404).json({ message: "Program bulunamadı ya da şu an kapalı." });
+    }
+    if (program.business.ownerId === req.user.id) {
+      return res.status(403).json({ message: "Kendi işletmenizin programına katılamazsınız." });
+    }
+
+    const card = await prisma.loyaltyCard.upsert({
+      where: { programId_userId: { programId: program.id, userId: req.user.id } },
+      create: {
+        program: { connect: { id: program.id } },
+        user: { connect: { id: req.user.id } },
+        lastEarnAt: new Date(0),
+      },
+      update: {},
+    });
+
+    res.status(201).json({ joined: true, card: { id: card.id, progress: card.progress } });
+  } catch (err) {
+    console.error("joinProgram hatası:", err);
+    res.status(500).json({ message: "Programa katılınamadı" });
+  }
+};

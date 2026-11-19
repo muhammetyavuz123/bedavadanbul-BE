@@ -194,3 +194,12 @@ export const loyaltyProgramLimiter = rateLimit({
   skipFailedRequests: true,
   keyGenerator: (req) => String(req.user.id),
 });
+
+// Sadakat programına katılma
+export const loyaltyJoinLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: { message: "Çok fazla katılma işlemi. Biraz sonra tekrar deneyin." },
+  skipFailedRequests: true,
+  keyGenerator: (req) => String(req.user.id),
+});
